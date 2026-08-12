@@ -33,3 +33,12 @@ export async function getDocumentUrl(path: string): Promise<string | null> {
   const { url } = await res.json()
   return url ?? null
 }
+
+export async function deleteApplicant(id: string): Promise<{ error: string | null }> {
+  const res = await fetch(`/api/applicants/${id}`, { method: "DELETE" })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    return { error: body.error || "Could not delete this applicant." }
+  }
+  return { error: null }
+}

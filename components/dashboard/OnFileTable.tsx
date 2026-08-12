@@ -23,6 +23,11 @@ export default function OnFileTable({ initialApplicants }: { initialApplicants: 
     setApplicants(prev => prev.map(a => (a.id === updated.id ? updated : a)))
   }
 
+  const handleDeleted = (id: string) => {
+    setApplicants(prev => prev.filter(a => a.id !== id))
+    setSelectedId(null)
+  }
+
   const filtered = useMemo(() => {
     return applicants.filter(a => {
       if (search && !a.name.toLowerCase().includes(search.toLowerCase())) return false
@@ -137,7 +142,8 @@ export default function OnFileTable({ initialApplicants }: { initialApplicants: 
         <ApplicantDrawer
           applicant={selected}
           onClose={() => setSelectedId(null)}
-          onUpdated={handleUpdated} />
+          onUpdated={handleUpdated}
+          onDeleted={handleDeleted} />
       )}
     </div>
   )

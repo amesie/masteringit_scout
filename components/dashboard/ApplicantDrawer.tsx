@@ -4,7 +4,7 @@ import { useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { SUBJECT_STATUS_CONFIG, APPLICANT_STATUS_CONFIG } from "@/lib/status"
 import type { Applicant, ApplicantStatus, SubjectMatchStatus, SubjectScoreEntry } from "@/lib/types"
-import { updateApplicantStatus, updateSubjectScores, markContacted, getDocumentUrl } from "./applicantActions"
+import { updateApplicantStatus, updateSubjectScores, markContacted, getDocumentUrl, deleteApplicant } from "./applicantActions"
 import { Pill } from "./Pill"
 
 const STATUS_OPTIONS: ApplicantStatus[] = [
@@ -109,18 +109,65 @@ async function openDocument(path: string | null) {
   if (url) window.open(url, "_blank", "noopener,noreferrer")
 }
 
+function DeleteConfirmModal({ name, onConfirm, onCancel, busy, error }: {
+  name: string
+  onConfirm: () => void
+  onCancel: () => void
+  busy: boolean
+  error: string | null
+}) {
+  return (
+    <>
+      <div className="fixed inset-0 z-50" style={{ background: "rgba(58,58,58,0.3)" }} onClick={onCancel} />
+      <div className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[400px] rounded-2xl p-8"
+        style={{ background: "#FFF", boxShadow: "0 8px 40px rgba(58,58,58,0.15)" }}>
+        <div className="mb-1 w-10 h-10 rounded-full flex items-center justify-center" style={{ background: "#FDE8EC" }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="#B0253C" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </div>
+        <h3 className="text-base font-semibold mt-3 mb-1.5" style={{ color: "#3A3A3A" }}>Delete applicant?</h3>
+        <p className="text-sm leading-relaxed mb-6" style={{ color: "#8A8580" }}>
+          <span className="font-medium" style={{ color: "#3A3A3A" }}>{name}</span>
+          {" and all of their scoring, contact history, and uploaded documents will be permanently deleted. This cannot be undone."}
+        </p>
+        {error && (
+          <div className="mb-4 px-3.5 py-3 rounded-lg text-sm" style={{ background: "#FDE8EC", color: "#B0253C" }}>{error}</div>
+        )}
+        <div className="flex gap-3">
+          <button onClick={onCancel} disabled={busy}
+            className="flex-1 py-3 rounded-lg text-sm font-semibold border transition-colors hover:bg-gray-50 disabled:opacity-60"
+            style={{ borderColor: "#E5E3DF", color: "#3A3A3A", background: "#FFF" }}>
+            Cancel
+          </button>
+          <button onClick={onConfirm} disabled={busy}
+            className="flex-1 py-3 rounded-lg text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-60"
+            style={{ background: "#B0253C", color: "#FFF" }}>
+            {busy ? "Deleting…" : "Delete permanently"}
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
 export default function ApplicantDrawer({
   applicant,
   onClose,
   onUpdated,
+  onDeleted,
 }: {
   applicant: Applicant
   onClose: () => void
   onUpdated: (updated: Applicant) => void
+  onDeleted: (id: string) => void
 }) {
   const [copied, setCopied] = useState(false)
   const [statusSaving, setStatusSaving] = useState(false)
   const [contactSaving, setContactSaving] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const copy = (val: string) => {
     navigator.clipboard.writeText(val).catch(() => {})
@@ -171,6 +218,18 @@ export default function ApplicantDrawer({
     }
   }
 
+  const handleDelete = async () => {
+    setDeleting(true)
+    setDeleteError(null)
+    const { error } = await deleteApplicant(applicant.id)
+    setDeleting(false)
+    if (error) {
+      setDeleteError(error)
+      return
+    }
+    onDeleted(applicant.id)
+  }
+
   return (
     <>
       <div className="fixed inset-0 z-30" style={{ background: "rgba(58,58,58,0.25)" }} onClick={onClose} />
@@ -187,13 +246,23 @@ export default function ApplicantDrawer({
                 : `${total} subjects — ${qualified} of ${total} qualified`}
             </p>
           </div>
-          <button onClick={onClose}
-            className="w-9 h-9 rounded-full flex items-center justify-center transition-colors hover:bg-gray-100 flex-shrink-0 ml-4"
-            aria-label="Close">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M2 2l12 12M14 2L2 14" stroke="#3A3A3A" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-          </button>
+          <div className="flex items-center gap-1 flex-shrink-0 ml-4">
+            <button onClick={() => setShowDeleteConfirm(true)}
+              className="w-9 h-9 rounded-full flex items-center justify-center transition-colors hover:bg-red-50"
+              style={{ color: "#B0253C" }}
+              aria-label="Delete applicant" title="Delete applicant">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14zM10 11v6M14 11v6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+            <button onClick={onClose}
+              className="w-9 h-9 rounded-full flex items-center justify-center transition-colors hover:bg-gray-100"
+              aria-label="Close">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M2 2l12 12M14 2L2 14" stroke="#3A3A3A" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 px-8 py-6 flex flex-col gap-7">
@@ -344,6 +413,15 @@ export default function ApplicantDrawer({
       </div>
 
       <CopiedToast visible={copied} />
+
+      {showDeleteConfirm && (
+        <DeleteConfirmModal
+          name={applicant.name}
+          busy={deleting}
+          error={deleteError}
+          onConfirm={handleDelete}
+          onCancel={() => { setShowDeleteConfirm(false); setDeleteError(null) }} />
+      )}
     </>
   )
 }
