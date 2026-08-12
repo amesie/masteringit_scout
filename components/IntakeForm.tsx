@@ -193,7 +193,6 @@ export default function IntakeForm() {
   const [phone, setPhone] = useState("")
   const [email, setEmail] = useState("")
   const [area, setArea] = useState("")
-  const [rate, setRate] = useState("")
   const [grades, setGrades] = useState<string[]>([])
   const [days, setDays] = useState<string[]>([])
   const [times, setTimes] = useState<string[]>([])
@@ -236,7 +235,6 @@ export default function IntakeForm() {
         email: email.trim(),
         phone: phone.trim(),
         area: area.trim(),
-        rate: rate ? Number(rate) : null,
         gradeLevels: grades,
         availability: [...days, ...times],
         mode,
@@ -395,15 +393,6 @@ export default function IntakeForm() {
           <div>
             <label className="block text-sm font-medium mb-1.5" style={{ color: "#3A3A3A" }}>{"Area / suburb you're based in"}</label>
             <input type="text" required placeholder="e.g. Sandton, Johannesburg" value={area} onChange={e => setArea(e.target.value)}
-              className="w-full px-3.5 py-3 rounded-lg border text-sm"
-              style={{ borderColor: "#E5E3DF", background: "#FFF", color: "#3A3A3A", outline: "none" }}
-              onFocus={e => (e.target.style.borderColor = "#FD3352")}
-              onBlur={e => (e.target.style.borderColor = "#E5E3DF")} />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1.5" style={{ color: "#3A3A3A" }}>Hourly rate (ZAR)</label>
-            <input type="number" min={0} step={10} required placeholder="e.g. 250" value={rate} onChange={e => setRate(e.target.value)}
               className="w-full px-3.5 py-3 rounded-lg border text-sm"
               style={{ borderColor: "#E5E3DF", background: "#FFF", color: "#3A3A3A", outline: "none" }}
               onFocus={e => (e.target.style.borderColor = "#FD3352")}

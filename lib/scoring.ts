@@ -13,7 +13,6 @@ export interface ScoringInput {
   area: string
   availability: string[]
   mode: string
-  rate: number | null
   hasMatric: boolean
 }
 
@@ -63,7 +62,6 @@ Grade levels applied for: ${input.gradeLevels.join(", ") || "(not specified)"}
 Area: ${input.area || "(not specified)"}
 Availability: ${input.availability.join(", ") || "(not specified)"}
 Teaching mode: ${input.mode || "(not specified)"}
-Requested rate: ${input.rate != null ? `R${input.rate}/hr` : "(not specified)"}
 Matric certificate uploaded: ${input.hasMatric ? "yes" : "no"}
 
 ${subjectsList}

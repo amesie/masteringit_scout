@@ -9,7 +9,6 @@ interface ApplyPayload {
   email: string
   phone: string
   area: string
-  rate: number | null
   gradeLevels: string[]
   availability: string[]
   mode: string
@@ -90,7 +89,6 @@ export async function POST(request: Request) {
           area: payload.area,
           availability: payload.availability || [],
           mode: payload.mode,
-          rate: payload.rate,
           hasMatric,
         },
         openNeeds
@@ -114,7 +112,6 @@ export async function POST(request: Request) {
     phone: payload.phone,
     subjects: validSubjects.map(s => s.subject),
     grade_range: (payload.gradeLevels || []).join(", ") || null,
-    rate: payload.rate,
     location_pref: payload.mode || null,
     area: payload.area || null,
     availability: (payload.availability || []).join(", ") || null,

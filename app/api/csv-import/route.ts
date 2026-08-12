@@ -57,8 +57,6 @@ export async function POST(request: Request) {
     const subjects = splitList(get(row, "subjects", "subject"))
     const gradeRangeRaw = get(row, "grade_range", "grades", "grade levels")
     const gradeLevels = splitList(gradeRangeRaw)
-    const rateRaw = get(row, "rate", "hourly rate")
-    const rate = rateRaw ? Number(rateRaw.replace(/[^0-9.]/g, "")) : null
     const mode = get(row, "location_pref", "mode", "teaching mode")
     const area = get(row, "area", "location", "suburb")
     const availabilityRaw = get(row, "availability")
@@ -78,7 +76,6 @@ export async function POST(request: Request) {
             area,
             availability,
             mode,
-            rate: Number.isFinite(rate) ? rate : null,
             hasMatric,
           },
           openNeeds
@@ -107,7 +104,6 @@ export async function POST(request: Request) {
       phone: phone || null,
       subjects,
       grade_range: gradeRangeRaw || null,
-      rate: Number.isFinite(rate) ? rate : null,
       location_pref: mode || null,
       area: area || null,
       availability: availabilityRaw || null,

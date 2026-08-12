@@ -263,7 +263,6 @@ export default function ApplicantDrawer({
                 { label: "Area", value: applicant.area || "—" },
                 { label: "Mode", value: applicant.location_pref || "—" },
                 { label: "Availability", value: applicant.availability || "—" },
-                { label: "Rate", value: applicant.rate != null ? `R${applicant.rate}/hr` : "—" },
               ].map(({ label, value }) => (
                 <div key={label}>
                   <dt className="text-xs" style={{ color: "#8A8580" }}>{label}</dt>

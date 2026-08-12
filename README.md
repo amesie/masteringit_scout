@@ -85,8 +85,11 @@ from the Supabase dashboard → Project Settings → API).
 - The Figma prototype gated "On File" behind the owner role; the spec's
   permissions section says only user management is owner-exclusive, so this
   build follows the spec and gives employees the same access.
-- Added a `rate` (hourly rate) field to the intake form — the spec's data
-  model requires `applicants.rate`, but the Figma form didn't collect it.
+- The spec's data model includes `applicants.rate`. MasteringIt pays a flat,
+  non-negotiable rate, so this build doesn't collect or score on it anywhere
+  — the intake form has no rate field, and nothing writes to that column.
+  The column itself is left in place in `applicants` (unused) rather than
+  migrated out, since removing a column wasn't asked for.
 - Added `open_needs` (owner's current hiring criteria) and a `needs_review`
   flag on `applicants`, both implied by the spec but not given explicit
   schemas.
