@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { requireProfile } from "@/lib/auth"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { scoreApplication } from "@/lib/scoring"
+import type { OpenNeed } from "@/lib/types"
 
 type CsvRow = Record<string, string>
 
@@ -19,6 +21,10 @@ function splitList(value: string): string[] {
     .filter(Boolean)
 }
 
+function truthy(value: string): boolean {
+  return ["yes", "y", "true", "1"].includes(value.trim().toLowerCase())
+}
+
 export async function POST(request: Request) {
   await requireProfile()
 
@@ -29,6 +35,9 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminClient()
+
+  const { data: openNeedsData } = await admin.from("open_needs").select("*").eq("is_active", true)
+  const openNeeds = (openNeedsData ?? []) as OpenNeed[]
 
   let imported = 0
   let skipped = 0
@@ -46,33 +55,69 @@ export async function POST(request: Request) {
     }
 
     const subjects = splitList(get(row, "subjects", "subject"))
-    const gradeRange = get(row, "grade_range", "grades", "grade levels") || null
+    const gradeRangeRaw = get(row, "grade_range", "grades", "grade levels")
+    const gradeLevels = splitList(gradeRangeRaw)
     const rateRaw = get(row, "rate", "hourly rate")
     const rate = rateRaw ? Number(rateRaw.replace(/[^0-9.]/g, "")) : null
-    const locationPref = get(row, "location_pref", "mode", "teaching mode") || null
-    const area = get(row, "area", "location", "suburb") || null
-    const availability = get(row, "availability") || null
+    const mode = get(row, "location_pref", "mode", "teaching mode")
+    const area = get(row, "area", "location", "suburb")
+    const availabilityRaw = get(row, "availability")
+    const availability = splitList(availabilityRaw)
+    const experience = get(row, "experience", "background", "notes")
+    const hasMatric = truthy(get(row, "matric", "matric certificate"))
     const appliedAtRaw = get(row, "applied_at", "date added", "dateadded")
     const appliedAt = appliedAtRaw && !isNaN(Date.parse(appliedAtRaw)) ? new Date(appliedAtRaw).toISOString() : undefined
 
-    const needsReview = !email || !phone || subjects.length === 0
+    const canScore = subjects.length > 0
+    const scoring = canScore
+      ? await scoreApplication(
+          {
+            name,
+            subjects: subjects.map(subject => ({ subject, experience })),
+            gradeLevels,
+            area,
+            availability,
+            mode,
+            rate: Number.isFinite(rate) ? rate : null,
+            hasMatric,
+          },
+          openNeeds
+        )
+      : {
+          matchScore: 0,
+          scoreRationale: "No subjects were provided — needs manual review.",
+          subjectScores: [],
+          needsReview: true,
+          reviewReason: "SCOUT could not confidently parse this row — no subjects were provided.",
+          matchesOpenNeed: false,
+        }
+
+    const missingContactInfo = !email || !phone
+    const needsReview = scoring.needsReview || missingContactInfo
+    const reviewReason = missingContactInfo
+      ? [scoring.reviewReason, "Missing email or phone — needs manual review."].filter(Boolean).join(" ")
+      : scoring.reviewReason
+
+    const status = needsReview ? "active" : scoring.matchesOpenNeed ? "active" : "dormant"
+    const dormantSince = !needsReview && !scoring.matchesOpenNeed ? new Date().toISOString() : null
 
     const { error } = await admin.from("applicants").insert({
       name,
       email: email || null,
       phone: phone || null,
       subjects,
-      grade_range: gradeRange,
+      grade_range: gradeRangeRaw || null,
       rate: Number.isFinite(rate) ? rate : null,
-      location_pref: locationPref,
-      area,
-      availability,
-      status: "dormant",
-      dormant_since: new Date().toISOString(),
+      location_pref: mode || null,
+      area: area || null,
+      availability: availabilityRaw || null,
+      match_score: scoring.matchScore,
+      score_rationale: scoring.scoreRationale,
+      subject_scores: scoring.subjectScores,
+      status,
       needs_review: needsReview,
-      review_reason: needsReview
-        ? "Imported from CSV with incomplete data — needs manual review."
-        : null,
+      review_reason: reviewReason || null,
+      dormant_since: dormantSince,
       source: "csv_import",
       ...(appliedAt ? { applied_at: appliedAt } : {}),
       raw_submission: row,

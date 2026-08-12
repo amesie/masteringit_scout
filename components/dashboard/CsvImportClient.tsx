@@ -60,8 +60,8 @@ export default function CsvImportClient() {
       <div className="mb-6">
         <h2 className="text-base font-semibold" style={{ color: "#3A3A3A" }}>Import historical applicants</h2>
         <p className="text-sm mt-0.5" style={{ color: "#8A8580" }}>
-          Upload a CSV of past applicants. Expected columns: name, email, phone, subjects, grade_range, rate, location_pref, area, availability.
-          Imported rows are tagged <code>source = csv_import</code> and set to <code>dormant</code> — review and reactivate as needed.
+          Upload a CSV of past applicants. Expected columns: name, email, phone, subjects, grade_range, rate, location_pref, area, availability, experience, matric.
+          Each row is scored against your current Hiring Needs just like a live application — rows that match land as <code>active</code>, the rest as <code>dormant</code>. Rows SCOUT can&apos;t confidently assess are flagged for review. Imported rows are tagged <code>source = csv_import</code>.
         </p>
       </div>
 
