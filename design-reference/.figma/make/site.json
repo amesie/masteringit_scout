@@ -1,0 +1,10 @@
+{
+  "description": "Streamline the tutor application process with an intuitive intake form for applicants and a comprehensive dashboard for owners to manage and review candidates.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
