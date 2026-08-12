@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
-import type { ApplicantStatus, SubjectScoreEntry } from "@/lib/types"
+import type { Applicant, ApplicantStatus, SubjectScoreEntry } from "@/lib/types"
 
 export async function updateApplicantStatus(
   supabase: SupabaseClient,
@@ -23,6 +23,26 @@ export async function updateSubjectScores(
   return supabase.from("applicants").update({ subject_scores: subjectScores }).eq("id", id)
 }
 
+// Used by the "Mark as Qualified — Keep on File" subject action: as well as
+// recording that subject as a match, it moves the applicant into the On
+// File (dormant) pool so it's actually reachable from that tab, which is
+// what the button's label promises.
+export async function keepOnFile(
+  supabase: SupabaseClient,
+  id: string,
+  subjectScores: SubjectScoreEntry[],
+  alreadyDormant: boolean
+) {
+  return supabase
+    .from("applicants")
+    .update({
+      subject_scores: subjectScores,
+      status: "dormant",
+      ...(alreadyDormant ? {} : { dormant_since: new Date().toISOString() }),
+    })
+    .eq("id", id)
+}
+
 export async function markContacted(supabase: SupabaseClient, id: string) {
   return supabase.from("applicants").update({ last_contacted: new Date().toISOString() }).eq("id", id)
 }
@@ -41,4 +61,15 @@ export async function deleteApplicant(id: string): Promise<{ error: string | nul
     return { error: body.error || "Could not delete this applicant." }
   }
   return { error: null }
+}
+
+export async function rescoreApplicant(
+  id: string
+): Promise<{ applicant: Applicant | null; error: string | null }> {
+  const res = await fetch(`/api/applicants/${id}/rescore`, { method: "POST" })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    return { applicant: null, error: body.error || "Could not re-score this applicant." }
+  }
+  return { applicant: body.applicant as Applicant, error: null }
 }

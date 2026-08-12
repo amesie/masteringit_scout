@@ -4,7 +4,7 @@ import { useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { SUBJECT_STATUS_CONFIG, APPLICANT_STATUS_CONFIG } from "@/lib/status"
 import type { Applicant, ApplicantStatus, SubjectMatchStatus, SubjectScoreEntry } from "@/lib/types"
-import { updateApplicantStatus, updateSubjectScores, markContacted, getDocumentUrl, deleteApplicant } from "./applicantActions"
+import { updateApplicantStatus, updateSubjectScores, keepOnFile, markContacted, getDocumentUrl, deleteApplicant, rescoreApplicant } from "./applicantActions"
 import { Pill } from "./Pill"
 
 const STATUS_OPTIONS: ApplicantStatus[] = [
@@ -168,6 +168,9 @@ export default function ApplicantDrawer({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [rescoring, setRescoring] = useState(false)
+  const [rescoreError, setRescoreError] = useState<string | null>(null)
+  const [rescoreNote, setRescoreNote] = useState<string | null>(null)
 
   const copy = (val: string) => {
     navigator.clipboard.writeText(val).catch(() => {})
@@ -212,10 +215,46 @@ export default function ApplicantDrawer({
     )
 
     const supabase = createClient()
+
+    if (action === "qualify") {
+      // "Keep on File" moves the applicant into the On File (dormant) pool
+      // — that's what the button promises, not just a per-subject tag.
+      const alreadyDormant = applicant.status === "dormant"
+      const { error } = await keepOnFile(supabase, applicant.id, updatedScores, alreadyDormant)
+      if (!error) {
+        onUpdated({
+          ...applicant,
+          subject_scores: updatedScores,
+          status: "dormant",
+          dormant_since: alreadyDormant ? applicant.dormant_since : new Date().toISOString(),
+        })
+      }
+      return
+    }
+
     const { error } = await updateSubjectScores(supabase, applicant.id, updatedScores)
     if (!error) {
       onUpdated({ ...applicant, subject_scores: updatedScores })
     }
+  }
+
+  const handleRescore = async () => {
+    setRescoring(true)
+    setRescoreError(null)
+    setRescoreNote(null)
+    const { applicant: updated, error } = await rescoreApplicant(applicant.id)
+    setRescoring(false)
+    if (error || !updated) {
+      setRescoreError(error || "Could not re-score this applicant.")
+      return
+    }
+    const movedToActive = updated.status === "active" && applicant.status !== "active"
+    setRescoreNote(
+      movedToActive
+        ? `Now matches a current hiring need — moved to Active (score ${updated.match_score}/100).`
+        : `Re-scored: ${updated.match_score}/100. ${updated.score_rationale || ""}`
+    )
+    onUpdated(updated)
   }
 
   const handleDelete = async () => {
@@ -302,6 +341,32 @@ export default function ApplicantDrawer({
                 ? `Last contacted ${new Date(applicant.last_contacted).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}`
                 : "Not yet contacted"}
             </p>
+
+            {applicant.match_score != null && (
+              <p className="text-xs mt-1" style={{ color: "#8A8580" }}>
+                Match score: <span className="font-semibold" style={{ color: "#3A3A3A" }}>{applicant.match_score}/100</span>
+                {applicant.score_rationale ? ` — ${applicant.score_rationale}` : ""}
+              </p>
+            )}
+
+            {(applicant.status === "dormant" || applicant.status === "archived") && (
+              <div className="mt-3 pt-3 border-t" style={{ borderColor: "#F1F0EE" }}>
+                <button onClick={handleRescore} disabled={rescoring}
+                  className="flex items-center gap-2 text-xs font-semibold hover:underline disabled:opacity-60"
+                  style={{ color: "#FD3352" }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                    <path d="M21 12a9 9 0 11-2.64-6.36M21 4v5h-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  {rescoring ? "Re-scoring against current hiring needs…" : "Re-score against current hiring needs"}
+                </button>
+                {rescoreNote && (
+                  <p className="text-xs mt-2" style={{ color: "#1A7A47" }}>{rescoreNote}</p>
+                )}
+                {rescoreError && (
+                  <p className="text-xs mt-2" style={{ color: "#B0253C" }}>{rescoreError}</p>
+                )}
+              </div>
+            )}
           </section>
 
           <section>
