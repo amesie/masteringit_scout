@@ -7,7 +7,7 @@ export default async function DashboardPage() {
   const { data } = await supabase
     .from("applicants")
     .select("*")
-    .not("status", "in", "(dormant,archived)")
+    .not("status", "in", "(dormant,archived,shortlisted)")
     .order("applied_at", { ascending: false })
 
   return <ApplicantsTable initialApplicants={(data ?? []) as Applicant[]} />

@@ -38,9 +38,11 @@ owner invites employees from **Manage Users** in the dashboard.
 ### 3. Add current hiring needs
 
 Log in → **Hiring Needs** tab → add the subjects/grades currently being
-hired for. New applicants are scored against this list: a matching subject
-at or above its minimum score → `active`; otherwise → `dormant`. Leave it
-empty and everything lands as dormant until you populate it.
+hired for. New applicants are scored against this list and shown with
+their match score/rationale, but every new applicant lands in the plain
+**Applicants** queue regardless of whether they match — moving to **On
+File** only happens via an explicit staff action (marking Shortlisted, or
+"Keep on File" on a subject), never automatically at intake.
 
 ### 4. Set up the applicant confirmation email
 
@@ -134,10 +136,19 @@ from the Supabase dashboard → Project Settings → API).
   (`components/GradeSelector.tsx`, shared with the intake form) instead of
   freeform grade-range text, so grade-match scoring (category 3 above) is
   exact overlap rather than parsed prose.
+- **Applicant lifecycle / On File**: every new applicant (from `/apply` or
+  CSV import) lands in the plain **Applicants** queue as `active`, whatever
+  their match score — `app/dashboard/page.tsx` excludes only
+  `dormant`/`archived`/`shortlisted`. Moving to **On File**
+  (`app/dashboard/on-file/page.tsx`, which shows all three of those
+  statuses together) only happens via an explicit staff action: marking an
+  applicant **Shortlisted** in the drawer, or "Keep on File" on a subject
+  (which sets `dormant`). Nothing is auto-routed to On File at intake.
 - **Dormant lifecycle**: `/api/cron/dormant-check`, scheduled nightly via
-  `vercel.json`. Reactivates dormant applicants that now match an open need;
-  flags applicants dormant 12+ months for manual review. Never deletes or
-  auto-archives (POPIA data-retention guardrail from the spec).
+  `vercel.json`, operates only on already-`dormant` applicants —
+  reactivates ones that now match an open need, flags applicants dormant
+  12+ months for manual review. Never deletes or auto-archives (POPIA
+  data-retention guardrail from the spec).
 - **Documents**: CVs/matric certificates go to a private Supabase Storage
   bucket, uploaded server-side. The dashboard fetches short-lived signed URLs
   on demand (`/api/documents`) rather than exposing the bucket publicly.

@@ -7,7 +7,7 @@ export default async function OnFilePage() {
   const { data } = await supabase
     .from("applicants")
     .select("*")
-    .in("status", ["dormant", "archived"])
+    .in("status", ["dormant", "archived", "shortlisted"])
     .order("dormant_since", { ascending: true, nullsFirst: false })
 
   return <OnFileTable initialApplicants={(data ?? []) as Applicant[]} />

@@ -1,16 +1,21 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { applicantLocation } from "@/lib/status"
-import { Chip } from "./Pill"
+import { applicantLocation, APPLICANT_STATUS_CONFIG } from "@/lib/status"
+import { Chip, Pill } from "./Pill"
 import PhoneReveal from "./PhoneReveal"
 import ApplicantDrawer from "./ApplicantDrawer"
-import type { Applicant } from "@/lib/types"
+import type { Applicant, ApplicantStatus } from "@/lib/types"
 
 function formatDate(value: string | null) {
   if (!value) return "—"
   return new Date(value).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
 }
+
+// Statuses that belong on this page — a change away from all of these
+// (e.g. re-scoring back to active, or un-shortlisting) should remove the
+// applicant from view immediately rather than waiting for a page reload.
+const ON_FILE_STATUSES: ApplicantStatus[] = ["dormant", "archived", "shortlisted"]
 
 export default function OnFileTable({ initialApplicants }: { initialApplicants: Applicant[] }) {
   const [applicants, setApplicants] = useState(initialApplicants)
@@ -21,6 +26,11 @@ export default function OnFileTable({ initialApplicants }: { initialApplicants: 
   const selected = applicants.find(a => a.id === selectedId) ?? null
 
   const handleUpdated = (updated: Applicant) => {
+    if (!ON_FILE_STATUSES.includes(updated.status)) {
+      setApplicants(prev => prev.filter(a => a.id !== updated.id))
+      setSelectedId(null)
+      return
+    }
     setApplicants(prev => prev.map(a => (a.id === updated.id ? updated : a)))
   }
 
@@ -40,7 +50,7 @@ export default function OnFileTable({ initialApplicants }: { initialApplicants: 
   return (
     <div>
       <p className="text-sm mb-5" style={{ color: "#8A8580" }}>
-        Qualified applicants kept on file for future openings. Applicants dormant for 12+ months are flagged for your review — SCOUT never removes them automatically.
+        Shortlisted applicants and those kept on file for future openings. Applicants dormant for 12+ months are flagged for your review — SCOUT never removes anyone automatically.
       </p>
       <div className="flex items-center gap-3 mb-6">
         <div className="relative">
@@ -70,7 +80,7 @@ export default function OnFileTable({ initialApplicants }: { initialApplicants: 
         <table className="w-full">
           <thead>
             <tr style={{ borderBottom: "1px solid #E5E3DF", background: "#F5F4F2" }}>
-              {["Name & Surname", "Subject(s)", "Location", "Contact", "Dormant Since", ""].map(h => (
+              {["Name & Surname", "Status", "Subject(s)", "Location", "Contact", "Dormant Since", ""].map(h => (
                 <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider"
                   style={{ color: "#8A8580" }}>{h}</th>
               ))}
@@ -79,11 +89,13 @@ export default function OnFileTable({ initialApplicants }: { initialApplicants: 
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-5 py-12 text-center text-sm" style={{ color: "#8A8580" }}>
+                <td colSpan={7} className="px-5 py-12 text-center text-sm" style={{ color: "#8A8580" }}>
                   No applicants on file
                 </td>
               </tr>
-            ) : filtered.map((a, i) => (
+            ) : filtered.map((a, i) => {
+              const statusCfg = APPLICANT_STATUS_CONFIG[a.status]
+              return (
               <tr key={a.id}
                 className="transition-colors hover:bg-gray-50 cursor-pointer"
                 style={{ borderTop: i > 0 ? "1px solid #F1F0EE" : undefined }}
@@ -96,6 +108,9 @@ export default function OnFileTable({ initialApplicants }: { initialApplicants: 
                       12mo review
                     </span>
                   )}
+                </td>
+                <td className="px-5 py-4">
+                  <Pill bg={statusCfg.bg} text={statusCfg.text} label={statusCfg.label} />
                 </td>
                 <td className="px-5 py-4">
                   <div className="flex flex-wrap gap-1">
@@ -134,7 +149,8 @@ export default function OnFileTable({ initialApplicants }: { initialApplicants: 
                   </button>
                 </td>
               </tr>
-            ))}
+              )
+            })}
           </tbody>
         </table>
       </div>

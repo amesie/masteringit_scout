@@ -208,8 +208,13 @@ export async function POST(request: Request) {
         matchesOpenNeed: false,
       }
 
-  const status = scoring.needsReview ? "active" : scoring.matchesOpenNeed ? "active" : "dormant"
-  const dormantSince = !scoring.needsReview && !scoring.matchesOpenNeed ? new Date().toISOString() : null
+  // Every new application starts in the plain Applicants queue for staff to
+  // review — match score/matchesOpenNeed are still computed and shown, but
+  // no longer auto-route the applicant to dormant/On File at intake. That
+  // only happens now via an explicit staff action (marking Shortlisted, or
+  // "Keep on File" on a subject).
+  const status = "active"
+  const dormantSince = null
 
   const { error: insertError } = await admin.from("applicants").insert({
     id: applicantId,
