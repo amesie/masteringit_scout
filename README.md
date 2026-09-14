@@ -17,6 +17,8 @@ CLI. So the schema has to be applied by hand, once:
 3. Paste the contents of `supabase/migrations/0002_structured_intake.sql` and
    run it too — adds the `country`/`suburb` columns used by the current
    `/apply` form.
+4. Paste the contents of `supabase/migrations/0003_drop_rate_column.sql` and
+   run it — drops the unused `rate` column.
 
 This creates the `applicants`, `profiles`, and `open_needs` tables, RLS
 policies, and a private `applicant-documents` storage bucket for CVs/matric
@@ -99,8 +101,7 @@ from the Supabase dashboard → Project Settings → API).
 - The spec's data model includes `applicants.rate`. MasteringIt pays a flat,
   non-negotiable rate, so this build doesn't collect or score on it anywhere
   — the intake form has no rate field, and nothing writes to that column.
-  The column itself is left in place in `applicants` (unused) rather than
-  migrated out, since removing a column wasn't asked for.
+  The column was dropped from `applicants` in migration `0003`.
 - Added `open_needs` (owner's current hiring criteria) and a `needs_review`
   flag on `applicants`, both implied by the spec but not given explicit
   schemas.

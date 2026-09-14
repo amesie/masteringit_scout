@@ -27,7 +27,6 @@ export interface Applicant {
   contact: string | null
   subjects: string[]
   grade_range: string | null
-  rate: number | null
   location_pref: string | null
   area: string | null
   country: string | null
