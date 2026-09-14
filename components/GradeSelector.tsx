@@ -1,4 +1,4 @@
-export const GRADES = Array.from({ length: 12 }, (_, i) => String(i + 1))
+import { GRADES } from "@/lib/intake-options"
 
 export default function GradeSelector({
   grades,

@@ -3,45 +3,9 @@
 import { useState } from "react"
 import { LogoFull } from "./Logo"
 import GradeSelector from "./GradeSelector"
+import { CURRICULA, COUNTRIES, SUBURBS, SUBJECTS } from "@/lib/intake-options"
 
 type FileState = { name: string; file: File } | null
-
-const CURRICULA = ["CAPS", "IEB", "Cambridge (CAIE)", "IB (International Baccalaureate)", "American Curriculum"]
-
-const COUNTRIES = ["South Africa"]
-
-const SUBURBS = [
-  "Johannesburg",
-  "Pretoria",
-  "Cape Town",
-  "Durban",
-  "Port Elizabeth (Gqeberha)",
-  "East London",
-  "Bloemfontein",
-  "Polokwane",
-  "Nelspruit (Mbombela)",
-  "Kimberley",
-  "Pietermaritzburg",
-  "Rustenburg",
-  "George",
-  "Other",
-]
-
-const SUBJECTS = [
-  "Mathematics",
-  "Mathematical Literacy",
-  "Physical Science",
-  "Life Sciences",
-  "Accounting",
-  "English",
-  "Afrikaans",
-  "Geography",
-  "History",
-  "Economics",
-  "Business Studies",
-  "Computer Applications Technology",
-  "Other",
-]
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 const TIMES = ["Morning (7–11)", "Afternoon (12–16)", "Evening (17–20)"]

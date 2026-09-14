@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { scoreApplication, type ScoringSubjectInput } from "@/lib/scoring"
 import { sendApplicantConfirmation } from "@/lib/email"
 import { verifyMatricMarks } from "@/lib/verification"
+import { GRADES, CURRICULA, COUNTRIES, TEACHING_MODES } from "@/lib/intake-options"
 import type { OpenNeed } from "@/lib/types"
 
 interface ApplyPayload {
@@ -17,13 +18,106 @@ interface ApplyPayload {
   subjects: ScoringSubjectInput[]
 }
 
+const MAX_NAME_LENGTH = 200
+const MAX_SHORT_TEXT_LENGTH = 100
+const MAX_EXPERIENCE_LENGTH = 5000
+const MAX_SUBJECTS = 10
+const MAX_AVAILABILITY_ITEMS = 20
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+// Rejects malformed/oversized/out-of-domain input from this public,
+// unauthenticated endpoint. Subject/suburb names themselves aren't strictly
+// allowlisted, since the form's "Other" option intentionally lets applicants
+// submit free text there — just length-capped like every other text field.
+function validatePayload(payload: ApplyPayload): string | null {
+  if (typeof payload.name !== "string" || !payload.name.trim() || payload.name.length > MAX_NAME_LENGTH) {
+    return "Please provide a valid name."
+  }
+  if (typeof payload.email !== "string" || !EMAIL_REGEX.test(payload.email.trim()) || payload.email.length > 320) {
+    return "Please provide a valid email address."
+  }
+  if (typeof payload.phone !== "string" || !payload.phone.trim() || payload.phone.length > 30) {
+    return "Please provide a valid phone number."
+  }
+  if (payload.country != null && (typeof payload.country !== "string" || !COUNTRIES.includes(payload.country))) {
+    return "Please select a valid country."
+  }
+  if (payload.suburb != null && (typeof payload.suburb !== "string" || payload.suburb.length > MAX_SHORT_TEXT_LENGTH)) {
+    return "Please provide a valid suburb."
+  }
+  if (payload.mode != null && (typeof payload.mode !== "string" || !TEACHING_MODES.includes(payload.mode))) {
+    return "Please select a valid teaching mode."
+  }
+  if (
+    !Array.isArray(payload.availability) ||
+    payload.availability.length > MAX_AVAILABILITY_ITEMS ||
+    payload.availability.some(a => typeof a !== "string" || a.length > 50)
+  ) {
+    return "Invalid availability data."
+  }
+  if (!Array.isArray(payload.subjects) || payload.subjects.length === 0 || payload.subjects.length > MAX_SUBJECTS) {
+    return `Please add between 1 and ${MAX_SUBJECTS} subjects.`
+  }
+
+  for (const s of payload.subjects) {
+    if (typeof s.subject !== "string" || !s.subject.trim() || s.subject.length > MAX_SHORT_TEXT_LENGTH) {
+      return "Each subject must have a valid name."
+    }
+    if (s.experience != null && (typeof s.experience !== "string" || s.experience.length > MAX_EXPERIENCE_LENGTH)) {
+      return "Experience notes are too long."
+    }
+    if (s.curriculum != null && (typeof s.curriculum !== "string" || !CURRICULA.includes(s.curriculum))) {
+      return "Please select a valid curriculum."
+    }
+    if (s.grades != null && (!Array.isArray(s.grades) || s.grades.some(g => typeof g !== "string" || !GRADES.includes(g)))) {
+      return "Invalid grade selection."
+    }
+    if (s.tertiary != null && typeof s.tertiary !== "boolean") {
+      return "Invalid tertiary value."
+    }
+    if (s.matricMark != null) {
+      const mark = Number(s.matricMark)
+      if (!Number.isFinite(mark) || mark < 0 || mark > 100) {
+        return "Matric mark must be a number between 0 and 100."
+      }
+    }
+  }
+
+  return null
+}
+
+const ALLOWED_DOCUMENT_TYPES = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "image/jpeg",
+  "image/png",
+])
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024 // 10MB
+
+function validateFile(file: File, label: string): string | null {
+  if (file.size > MAX_FILE_SIZE_BYTES) {
+    return `${label} is too large — please keep it under 10MB.`
+  }
+  if (!ALLOWED_DOCUMENT_TYPES.has(file.type)) {
+    return `${label} must be a PDF, Word document, or image (JPG/PNG).`
+  }
+  return null
+}
+
+// Storage keys are built from this — never trust a client-supplied filename
+// as-is.
+function sanitizeFileName(name: string): string {
+  return name.slice(-150).replace(/[^a-zA-Z0-9.\-_ ]/g, "_")
+}
+
 async function uploadFile(
   admin: ReturnType<typeof createAdminClient>,
   applicantId: string,
   kind: "cv" | "matric",
   file: File
 ): Promise<{ name: string; url: string } | null> {
-  const path = `${applicantId}/${kind}-${file.name}`
+  const path = `${applicantId}/${kind}-${sanitizeFileName(file.name)}`
   const buffer = Buffer.from(await file.arrayBuffer())
 
   const { error } = await admin.storage
@@ -58,8 +152,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Could not read the submitted form." }, { status: 400 })
   }
 
-  if (!payload.name || !payload.email || !payload.phone) {
-    return NextResponse.json({ error: "Name, email, and phone are required." }, { status: 400 })
+  const validationError = validatePayload(payload)
+  if (validationError) {
+    return NextResponse.json({ error: validationError }, { status: 400 })
+  }
+
+  if (cvFile) {
+    const fileError = validateFile(cvFile, "CV")
+    if (fileError) return NextResponse.json({ error: fileError }, { status: 400 })
+  }
+  if (matricFile) {
+    const fileError = validateFile(matricFile, "Matric certificate")
+    if (fileError) return NextResponse.json({ error: fileError }, { status: 400 })
   }
 
   const admin = createAdminClient()
