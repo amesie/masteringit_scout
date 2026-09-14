@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto"
 import { NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { scoreApplication, type ScoringSubjectInput } from "@/lib/scoring"
+import { sendApplicantConfirmation } from "@/lib/email"
 import type { OpenNeed } from "@/lib/types"
 
 interface ApplyPayload {
@@ -134,6 +135,14 @@ export async function POST(request: Request) {
   if (insertError) {
     console.error("Failed to insert applicant:", insertError.message)
     return NextResponse.json({ error: "Something went wrong saving your application." }, { status: 500 })
+  }
+
+  // The application is already saved at this point — a failure to send the
+  // confirmation email shouldn't fail the submission the applicant sees.
+  try {
+    await sendApplicantConfirmation(payload.email, payload.name)
+  } catch (err) {
+    console.error("Failed to send applicant confirmation email:", err instanceof Error ? err.message : err)
   }
 
   return NextResponse.json({ ok: true })

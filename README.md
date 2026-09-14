@@ -42,6 +42,28 @@ hired for. New applicants are scored against this list: a matching subject
 at or above its minimum score → `active`; otherwise → `dormant`. Leave it
 empty and everything lands as dormant until you populate it.
 
+### 4. Set up the applicant confirmation email
+
+Applicants get a neutral "we've received your application" email after
+submitting `/apply` (`lib/email.ts`). There's no verified sending domain for
+masteringit.co.za, so this sends over Gmail SMTP from a dedicated account
+instead of a transactional email API:
+
+1. Create a Gmail account to send from (e.g. `scout.masteringit@gmail.com`)
+   — don't reuse a personal or the owner's real inbox.
+2. On that account: **Google Account → Security → 2-Step Verification**
+   (turn it on) **→ App Passwords** → generate one for "Mail".
+3. In Vercel → Project Settings → Environment Variables, add:
+   - `scout_email_user` = the Gmail address
+   - `scout_email_password` = the 16-character App Password (not the
+     account's real password)
+4. Redeploy.
+
+If these aren't set, or sending fails for any reason, the application is
+still saved normally — the email is best-effort and never blocks a
+submission (see the `try/catch` around `sendApplicantConfirmation()` in
+`app/api/apply/route.ts`).
+
 ## Local development
 
 ```bash
@@ -71,6 +93,13 @@ from the Supabase dashboard → Project Settings → API).
   integration proved unreliable in practice. The function is left in place
   as a working abstraction in case a future feature needs an AI call (e.g.
   CV text extraction); nothing currently calls it.
+- **Email abstraction**: `sendApplicantConfirmation()` in `lib/email.ts` is
+  the only file that sends applicant-facing email — Gmail SMTP via
+  `scout_email_user`/`scout_email_password` (see setup step 4 above).
+  Content is a neutral acknowledgment of receipt only, per the build spec
+  guardrail against automated rejections or status messages. Called
+  fire-and-forget from `/api/apply` — a send failure is logged but never
+  fails the applicant's submission.
 - **Scoring**: `lib/scoring.ts` computes a 0–100 score per subject from 4
   categories worth 25 points each, no AI involved:
   1. **Matric mark** — the applicant's self-reported mark for that subject,
