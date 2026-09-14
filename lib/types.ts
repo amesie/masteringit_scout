@@ -8,15 +8,25 @@ export type ApplicantStatus =
 
 export type SubjectMatchStatus = "meets" | "review" | "missing" | "not-qualified"
 
+export interface SubjectScoreBreakdown {
+  markScore: number
+  subjectMatch: number
+  gradeMatch: number
+  notesMatch: number
+}
+
 export interface SubjectScoreEntry {
   subject: string
   status: SubjectMatchStatus
   matric_result: string
+  matric_mark: number | null
   experience: string
   rationale: string
   grades: string[]
   tertiary: boolean
   curriculum: string
+  score: number
+  score_breakdown: SubjectScoreBreakdown
 }
 
 export interface Applicant {
@@ -67,6 +77,8 @@ export interface OpenNeed {
   id: string
   subject: string
   grade_range: string | null
+  grades: string[]
+  tertiary: boolean
   min_score: number
   is_active: boolean
   notes: string | null

@@ -1,5 +1,8 @@
-import { generateContent } from "@/lib/ai"
 import type { OpenNeed, SubjectMatchStatus, SubjectScoreEntry } from "@/lib/types"
+
+// Deterministic scoring — 4 categories worth 25 points each, no AI call.
+// Replaces the old Gemini-judged scoring: fully explainable, and doesn't
+// depend on an external model being reachable.
 
 export interface ScoringSubjectInput {
   subject: string
@@ -7,6 +10,7 @@ export interface ScoringSubjectInput {
   grades?: string[]
   tertiary?: boolean
   curriculum?: string
+  matricMark?: number
 }
 
 export interface ScoringInput {
@@ -18,14 +22,6 @@ export interface ScoringInput {
   hasMatric: boolean
 }
 
-function formatGrade(g: string): string {
-  return /^\d+$/.test(g) ? `Grade ${g}` : g
-}
-
-function gradeLabels(s: ScoringSubjectInput): string {
-  return [...(s.grades ?? []).map(formatGrade), ...(s.tertiary ? ["Tertiary"] : [])].join(", ") || "(not specified)"
-}
-
 export interface ScoringResult {
   matchScore: number
   scoreRationale: string
@@ -35,147 +31,150 @@ export interface ScoringResult {
   matchesOpenNeed: boolean
 }
 
-const VALID_STATUSES: SubjectMatchStatus[] = ["meets", "review", "missing", "not-qualified"]
+// Flat, global pass mark for "qualified" in any subject — one number for
+// every subject/grade, per how the business actually wants this to work.
+const QUALIFYING_MATRIC_MARK = 70
+// Within this many points below the threshold, a subject is "review" rather
+// than outright "not-qualified".
+const REVIEW_BAND = 10
 
-const SYSTEM_INSTRUCTIONS = `You are SCOUT, the applicant-screening engine for MasteringIt, a South African tutoring company.
-You assess a tutor applicant's self-reported subjects and experience against the company's current hiring criteria.
-Be conservative: only mark a subject "meets" when experience is specific and credible (real qualifications, results, years tutoring).
-Use "review" when experience is plausible but thin, unverified, or borderline.
-Use "not-qualified" when experience clearly falls short.
-Use "missing" when there isn't enough information to judge a subject at all, or the matric certificate wasn't uploaded and matric results matter for that subject.
-Respond with ONLY valid JSON, no markdown fences, no commentary, matching exactly this shape:
-{
-  "matchScore": <integer 0-100, overall applicant quality across all subjects>,
-  "scoreRationale": "<one short sentence, e.g. '85% implied maths ability, 4 yrs experience'>",
-  "confident": <boolean — false only if the submission is too sparse or contradictory to assess responsibly>,
-  "subjects": [
-    { "subject": "<subject name>", "status": "meets"|"review"|"missing"|"not-qualified", "rationale": "<short reason>", "matricResultNote": "<short note on matric relevance, or empty string>" }
-  ]
-}`
-
-function buildPrompt(input: ScoringInput, openNeeds: OpenNeed[]): string {
-  const needsList = openNeeds.length
-    ? openNeeds
-        .map(n => `- ${n.subject}${n.grade_range ? ` (${n.grade_range})` : ""} — minimum score ${n.min_score}`)
-        .join("\n")
-    : "(No specific open needs recorded — assess purely on merit.)"
-
-  const subjectsList = input.subjects
-    .map(s =>
-      `Subject: ${s.subject}\nGrades applied for: ${gradeLabels(s)}\nCurriculum: ${s.curriculum || "(not specified)"}\nApplicant's stated experience: ${s.experience || "(not provided)"}`
-    )
-    .join("\n\n")
-
-  return `Current hiring needs:
-${needsList}
-
-Applicant: ${input.name}
-Location: ${input.location || "(not specified)"}
-Availability: ${input.availability.join(", ") || "(not specified)"}
-Teaching mode: ${input.mode || "(not specified)"}
-Matric certificate uploaded: ${input.hasMatric ? "yes" : "no"}
-
-${subjectsList}
-
-Assess this applicant now and return the JSON described in your instructions.`
+function deriveStatus(matricMark: number | null): SubjectMatchStatus {
+  if (matricMark == null) return "missing"
+  if (matricMark >= QUALIFYING_MATRIC_MARK) return "meets"
+  if (matricMark >= QUALIFYING_MATRIC_MARK - REVIEW_BAND) return "review"
+  return "not-qualified"
 }
 
-export async function scoreApplication(
-  input: ScoringInput,
+function gradesOverlap(
+  subjectGrades: string[],
+  subjectTertiary: boolean,
+  needGrades: string[],
+  needTertiary: boolean
+): boolean {
+  if (subjectTertiary && needTertiary) return true
+  return subjectGrades.some(g => needGrades.includes(g))
+}
+
+interface NeedMatch {
+  need: OpenNeed | null
+  subjectMatch: number
+  gradeMatch: number
+  notesMatch: number
+}
+
+const MODE_KEYWORDS: Record<string, string[]> = {
+  Online: ["online"],
+  "In-person": ["in-person", "in person"],
+  Both: ["online", "in-person", "in person", "both"],
+}
+
+function scoreAgainstNeed(input: ScoringSubjectInput, mode: string, location: string, need: OpenNeed): NeedMatch {
+  const gradeMatch = gradesOverlap(input.grades ?? [], input.tertiary ?? false, need.grades, need.tertiary) ? 25 : 0
+
+  const notes = (need.notes || "").toLowerCase()
+  let notesMatch = 0
+  if (notes) {
+    if ((MODE_KEYWORDS[mode] ?? []).some(kw => notes.includes(kw))) notesMatch += 12.5
+
+    const locationParts = location.split(",").map(s => s.trim().toLowerCase()).filter(Boolean)
+    if (locationParts.some(part => notes.includes(part))) notesMatch += 12.5
+  }
+
+  return { need, subjectMatch: 25, gradeMatch, notesMatch }
+}
+
+// Evaluates against every active need matching this subject and keeps
+// whichever scores highest — an applicant shouldn't lose out because one of
+// several open postings for the same subject happens to be a worse fit.
+function bestNeedMatch(input: ScoringSubjectInput, mode: string, location: string, openNeeds: OpenNeed[]): NeedMatch {
+  const candidates = openNeeds.filter(n => n.is_active && n.subject.toLowerCase() === input.subject.toLowerCase())
+  if (candidates.length === 0) {
+    return { need: null, subjectMatch: 0, gradeMatch: 0, notesMatch: 0 }
+  }
+  return candidates
+    .map(need => scoreAgainstNeed(input, mode, location, need))
+    .reduce((best, cur) =>
+      cur.subjectMatch + cur.gradeMatch + cur.notesMatch > best.subjectMatch + best.gradeMatch + best.notesMatch
+        ? cur
+        : best
+    )
+}
+
+function buildSubjectScore(
+  input: ScoringSubjectInput,
+  mode: string,
+  location: string,
+  hasMatric: boolean,
   openNeeds: OpenNeed[]
-): Promise<ScoringResult> {
-  const fallback: ScoringResult = {
-    matchScore: 0,
-    scoreRationale: "Automated scoring unavailable — needs manual review.",
-    subjectScores: input.subjects.map(s => ({
-      subject: s.subject,
-      status: "missing" as SubjectMatchStatus,
-      matric_result: input.hasMatric ? "Uploaded — not yet reviewed" : "Not uploaded",
-      experience: s.experience,
-      rationale: "Automated scoring unavailable.",
-      grades: s.grades ?? [],
-      tertiary: s.tertiary ?? false,
-      curriculum: s.curriculum ?? "",
-    })),
-    needsReview: true,
-    reviewReason: "SCOUT could not automatically score this application — needs manual review.",
-    matchesOpenNeed: false,
-  }
+): SubjectScoreEntry {
+  const matricMark =
+    typeof input.matricMark === "number" && Number.isFinite(input.matricMark)
+      ? Math.max(0, Math.min(100, input.matricMark))
+      : null
+  const markScore = matricMark != null ? Math.round((25 * matricMark) / 100) : 0
+  const status = deriveStatus(matricMark)
 
-  let raw: string
-  try {
-    raw = await generateContent(buildPrompt(input, openNeeds), SYSTEM_INSTRUCTIONS)
-  } catch {
-    return fallback
-  }
+  const match = bestNeedMatch(input, mode, location, openNeeds)
+  const score = Math.round(markScore + match.subjectMatch + match.gradeMatch + match.notesMatch)
 
-  let parsed: {
-    matchScore?: unknown
-    scoreRationale?: unknown
-    confident?: unknown
-    subjects?: unknown
+  const rationaleParts = [
+    matricMark != null ? `Matric mark ${matricMark}% (${markScore}/25)` : "No matric mark provided (0/25)",
+    match.need ? `Matches active ${match.need.subject} need (${match.subjectMatch}/25)` : "No matching open need (0/25)",
+  ]
+  if (match.need) {
+    rationaleParts.push(`Grade range ${match.gradeMatch > 0 ? "matches" : "doesn't match"} (${match.gradeMatch}/25)`)
+    rationaleParts.push(`Location/mode context (${match.notesMatch}/25)`)
   }
-  try {
-    const jsonText = raw.trim().replace(/^```json\s*|^```\s*|```$/g, "")
-    parsed = JSON.parse(jsonText)
-  } catch {
-    return fallback
-  }
-
-  if (
-    typeof parsed.matchScore !== "number" ||
-    typeof parsed.scoreRationale !== "string" ||
-    !Array.isArray(parsed.subjects)
-  ) {
-    return fallback
-  }
-
-  const subjectScores: SubjectScoreEntry[] = []
-  for (const entry of parsed.subjects as unknown[]) {
-    if (typeof entry !== "object" || entry === null) continue
-    const s = entry as Record<string, unknown>
-    const status = VALID_STATUSES.includes(s.status as SubjectMatchStatus)
-      ? (s.status as SubjectMatchStatus)
-      : "missing"
-    const subjectName = typeof s.subject === "string" ? s.subject : ""
-    if (!subjectName) continue
-    const original = input.subjects.find(x => x.subject === subjectName)
-    subjectScores.push({
-      subject: subjectName,
-      status,
-      matric_result: input.hasMatric
-        ? (typeof s.matricResultNote === "string" && s.matricResultNote) || "Uploaded — not yet reviewed"
-        : "Not uploaded",
-      experience: original?.experience ?? "",
-      rationale: typeof s.rationale === "string" ? s.rationale : "",
-      grades: original?.grades ?? [],
-      tertiary: original?.tertiary ?? false,
-      curriculum: original?.curriculum ?? "",
-    })
-  }
-
-  if (subjectScores.length === 0) {
-    return fallback
-  }
-
-  const confident = parsed.confident !== false
-  const matchScore = Math.max(0, Math.min(100, Math.round(parsed.matchScore)))
-
-  const matchesOpenNeed = openNeeds.some(
-    need =>
-      need.is_active &&
-      subjectScores.some(
-        s => s.subject.toLowerCase() === need.subject.toLowerCase() && s.status === "meets"
-      ) &&
-      matchScore >= need.min_score
-  )
 
   return {
-    matchScore,
-    scoreRationale: parsed.scoreRationale,
+    subject: input.subject,
+    status,
+    matric_result: hasMatric ? "Uploaded — not yet reviewed" : "Not uploaded",
+    matric_mark: matricMark,
+    experience: input.experience,
+    rationale: `${rationaleParts.join(" · ")} — ${score}/100`,
+    grades: input.grades ?? [],
+    tertiary: input.tertiary ?? false,
+    curriculum: input.curriculum ?? "",
+    score,
+    score_breakdown: {
+      markScore,
+      subjectMatch: match.subjectMatch,
+      gradeMatch: match.gradeMatch,
+      notesMatch: match.notesMatch,
+    },
+  }
+}
+
+export async function scoreApplication(input: ScoringInput, openNeeds: OpenNeed[]): Promise<ScoringResult> {
+  const subjectScores = input.subjects.map(s =>
+    buildSubjectScore(s, input.mode, input.location, input.hasMatric, openNeeds)
+  )
+
+  if (subjectScores.length === 0) {
+    return {
+      matchScore: 0,
+      scoreRationale: "No subjects were provided — needs manual review.",
+      subjectScores: [],
+      needsReview: true,
+      reviewReason: "SCOUT could not confidently parse this application — no subjects were provided.",
+      matchesOpenNeed: false,
+    }
+  }
+
+  const best = subjectScores.reduce((a, b) => (b.score > a.score ? b : a))
+  const bestNeed = openNeeds.find(n => n.is_active && n.subject.toLowerCase() === best.subject.toLowerCase())
+  const matchesOpenNeed = !!bestNeed && best.status === "meets" && best.score >= bestNeed.min_score
+  const needsReview = best.status === "missing"
+
+  return {
+    matchScore: best.score,
+    scoreRationale: best.rationale,
     subjectScores,
-    needsReview: !confident,
-    reviewReason: confident ? null : "SCOUT flagged this application for manual review — low confidence in the automated assessment.",
+    needsReview,
+    reviewReason: needsReview
+      ? "SCOUT could not score this application — no matric mark was provided for any subject. Needs manual review."
+      : null,
     matchesOpenNeed,
   }
 }

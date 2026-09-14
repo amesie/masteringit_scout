@@ -19,6 +19,9 @@ CLI. So the schema has to be applied by hand, once:
    `/apply` form.
 4. Paste the contents of `supabase/migrations/0003_drop_rate_column.sql` and
    run it — drops the unused `rate` column.
+5. Paste the contents of `supabase/migrations/0004_deterministic_scoring.sql`
+   and run it — adds structured `grades`/`tertiary` columns to `open_needs`,
+   used by the deterministic scoring formula below.
 
 This creates the `applicants`, `profiles`, and `open_needs` tables, RLS
 policies, and a private `applicant-documents` storage bucket for CVs/matric
@@ -62,27 +65,46 @@ from the Supabase dashboard → Project Settings → API).
   The only owner-exclusive page is **Manage Users** (`/dashboard/users`) —
   per the build spec, that's intentionally the *one* gated capability, not a
   broader permission system.
-- **AI abstraction**: every AI call goes through `generateContent()` in
-  `lib/ai.ts` — the only file that references the underlying provider by
-  name. It calls Gemini today using the `scout_gemini_api` env var (that's
-  the actual key name in Vercel — not `GEMINI_API_KEY` as the spec guessed).
-  To move to Claude later, swap the body of that one function to call the
-  Claude API (`claude-haiku-4-5`) with an `ANTHROPIC_API_KEY` env var; no
-  other file changes.
-- **Scoring**: `lib/scoring.ts` calls `generateContent()` to assess each
-  subject an applicant applied for against `open_needs` (the owner's current
-  hiring criteria — a table this build added since the spec didn't define
-  where "current criteria" should live). If the model's response can't be
-  parsed or it reports low confidence, the applicant is inserted with
-  `needs_review = true` and a reason — never silently guessed or dropped.
+- **AI abstraction**: `generateContent()` in `lib/ai.ts` calls Gemini using
+  the `scout_gemini_api` env var. It's currently **unused** — scoring was
+  switched to a fully deterministic formula (see below) after the Gemini
+  integration proved unreliable in practice. The function is left in place
+  as a working abstraction in case a future feature needs an AI call (e.g.
+  CV text extraction); nothing currently calls it.
+- **Scoring**: `lib/scoring.ts` computes a 0–100 score per subject from 4
+  categories worth 25 points each, no AI involved:
+  1. **Matric mark** — the applicant's self-reported mark for that subject,
+     scaled against a flat global qualifying threshold (`QUALIFYING_MATRIC_MARK`
+     in `lib/scoring.ts`, currently 70).
+  2. **Subject match** — full marks if an active Hiring Need exists for that
+     subject.
+  3. **Grade match** — full marks if the applicant's grades/tertiary overlap
+     the matching need's grades/tertiary (exact overlap, both sides
+     structured — see `open_needs.grades`/`tertiary`).
+  4. **Notes/context match** — up to half marks each for the applicant's
+     teaching mode and location being mentioned in the need's free-text
+     `notes` (case-insensitive substring match).
+
+     When multiple active needs match a subject, the applicant is scored
+     against each and the best total is kept. When no need matches at all,
+     only category 1 counts (max 25/100) — the applicant lands in the
+     dormant pool, same as before. The applicant's overall `match_score` is
+     the **best-scoring subject**, so a strong primary subject isn't dragged
+     down by a weaker secondary one. If no subject has a matric mark at all,
+     the applicant is flagged `needs_review = true` rather than scored —
+     never silently guessed or dropped.
 - **Grades/curriculum are per-subject, not global**: each entry in
   `applicants.subject_scores` (jsonb) carries its own `grades`, `tertiary`,
-  and `curriculum` — an applicant can apply to tutor CAPS Grade 8–10 Maths
-  and IEB Tertiary Accounting in the same submission. `country`/`suburb` are
-  the only applicant-level location fields now; `area` and `grade_range`
-  remain on the table purely for CSV-imported/older rows that predate this
-  structure (see `lib/status.ts`'s `applicantLocation()` for the fallback
-  the dashboard uses).
+  `curriculum`, and `matric_mark` — an applicant can apply to tutor CAPS
+  Grade 8–10 Maths and IEB Tertiary Accounting in the same submission, each
+  scored independently. `country`/`suburb` are the only applicant-level
+  location fields now; `area` and `grade_range` remain on the table purely
+  for CSV-imported/older rows that predate this structure (see
+  `lib/status.ts`'s `applicantLocation()` for the fallback the dashboard
+  uses). Hiring Needs use the same structured Grade 1–12 + Tertiary picker
+  (`components/GradeSelector.tsx`, shared with the intake form) instead of
+  freeform grade-range text, so grade-match scoring (category 3 above) is
+  exact overlap rather than parsed prose.
 - **Dormant lifecycle**: `/api/cron/dormant-check`, scheduled nightly via
   `vercel.json`. Reactivates dormant applicants that now match an open need;
   flags applicants dormant 12+ months for manual review. Never deletes or

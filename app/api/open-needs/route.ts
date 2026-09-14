@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 
 export async function POST(request: Request) {
   await requireProfile()
-  const { subject, gradeRange, minScore, notes } = await request.json().catch(() => ({}))
+  const { subject, grades, tertiary, minScore, notes } = await request.json().catch(() => ({}))
 
   if (!subject || typeof subject !== "string") {
     return NextResponse.json({ error: "Subject is required." }, { status: 400 })
@@ -15,7 +15,8 @@ export async function POST(request: Request) {
     .from("open_needs")
     .insert({
       subject: subject.trim(),
-      grade_range: gradeRange?.trim() || null,
+      grades: Array.isArray(grades) ? grades : [],
+      tertiary: !!tertiary,
       min_score: Number.isFinite(minScore) ? minScore : 70,
       notes: notes?.trim() || null,
     })

@@ -44,6 +44,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
         grades: s.grades,
         tertiary: s.tertiary,
         curriculum: s.curriculum,
+        matricMark: s.matric_mark ?? undefined,
       })),
       location: [applicant.suburb, applicant.country].filter(Boolean).join(", ") || applicant.area || "",
       availability: (applicant.availability || "").split(",").map(s => s.trim()).filter(Boolean),

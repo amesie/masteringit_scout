@@ -46,7 +46,12 @@ function SubjectCard({ entry, hasMatricFile, onAction }: {
       <div className="flex items-start justify-between gap-3 px-5 py-4"
         style={{ background: "#FAFAF8", borderBottom: "1px solid #E5E3DF" }}>
         <div>
-          <p className="text-sm font-semibold" style={{ color: "#3A3A3A" }}>{entry.subject}</p>
+          <p className="text-sm font-semibold" style={{ color: "#3A3A3A" }}>
+            {entry.subject}
+            {entry.score != null && (
+              <span className="font-normal ml-2" style={{ color: "#8A8580" }}>{entry.score}/100</span>
+            )}
+          </p>
           <p className="text-xs mt-0.5" style={{ color: "#8A8580" }}>{entry.matric_result}</p>
         </div>
         <Pill bg={cfg.bg} text={cfg.text} label={cfg.label} />

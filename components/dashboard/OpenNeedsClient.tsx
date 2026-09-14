@@ -2,11 +2,13 @@
 
 import { useState } from "react"
 import type { OpenNeed } from "@/lib/types"
+import GradeSelector from "@/components/GradeSelector"
 
 export default function OpenNeedsClient({ initialNeeds }: { initialNeeds: OpenNeed[] }) {
   const [needs, setNeeds] = useState(initialNeeds)
   const [subject, setSubject] = useState("")
-  const [gradeRange, setGradeRange] = useState("")
+  const [grades, setGrades] = useState<string[]>([])
+  const [tertiary, setTertiary] = useState(false)
   const [minScore, setMinScore] = useState("70")
   const [notes, setNotes] = useState("")
   const [error, setError] = useState("")
@@ -20,7 +22,7 @@ export default function OpenNeedsClient({ initialNeeds }: { initialNeeds: OpenNe
     const res = await fetch("/api/open-needs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ subject, gradeRange, minScore: Number(minScore), notes }),
+      body: JSON.stringify({ subject, grades, tertiary, minScore: Number(minScore), notes }),
     })
     const body = await res.json().catch(() => ({}))
     setLoading(false)
@@ -32,7 +34,8 @@ export default function OpenNeedsClient({ initialNeeds }: { initialNeeds: OpenNe
 
     setNeeds(prev => [...prev, body.need])
     setSubject("")
-    setGradeRange("")
+    setGrades([])
+    setTertiary(false)
     setMinScore("70")
     setNotes("")
   }
@@ -60,36 +63,38 @@ export default function OpenNeedsClient({ initialNeeds }: { initialNeeds: OpenNe
         </p>
       </div>
 
-      <form onSubmit={handleAdd} className="flex flex-wrap items-end gap-3 mb-6 p-4 rounded-xl border" style={{ borderColor: "#E5E3DF", background: "#FAFAF8" }}>
-        <div>
-          <label className="block text-xs font-medium mb-1.5" style={{ color: "#3A3A3A" }}>Subject</label>
-          <input type="text" required placeholder="Mathematics" value={subject} onChange={e => setSubject(e.target.value)}
-            className="px-3 py-2 rounded-lg border text-sm w-40"
-            style={{ borderColor: "#E5E3DF", background: "#FFF", color: "#3A3A3A", outline: "none" }} />
+      <form onSubmit={handleAdd} className="flex flex-col gap-4 mb-6 p-4 rounded-xl border" style={{ borderColor: "#E5E3DF", background: "#FAFAF8" }}>
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="block text-xs font-medium mb-1.5" style={{ color: "#3A3A3A" }}>Subject</label>
+            <input type="text" required placeholder="Mathematics" value={subject} onChange={e => setSubject(e.target.value)}
+              className="px-3 py-2 rounded-lg border text-sm w-40"
+              style={{ borderColor: "#E5E3DF", background: "#FFF", color: "#3A3A3A", outline: "none" }} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1.5" style={{ color: "#3A3A3A" }}>Min. score</label>
+            <input type="number" min={0} max={100} value={minScore} onChange={e => setMinScore(e.target.value)}
+              className="px-3 py-2 rounded-lg border text-sm w-24"
+              style={{ borderColor: "#E5E3DF", background: "#FFF", color: "#3A3A3A", outline: "none" }} />
+          </div>
+          <div className="flex-1 min-w-[160px]">
+            <label className="block text-xs font-medium mb-1.5" style={{ color: "#3A3A3A" }}>Notes (optional)</label>
+            <input type="text" placeholder="e.g. online, Sandton branch" value={notes} onChange={e => setNotes(e.target.value)}
+              className="px-3 py-2 rounded-lg border text-sm w-full"
+              style={{ borderColor: "#E5E3DF", background: "#FFF", color: "#3A3A3A", outline: "none" }} />
+          </div>
+          <button type="submit" disabled={loading}
+            className="px-4 py-2 rounded-lg text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-60"
+            style={{ background: "#FD3352", color: "#FFF" }}>
+            {loading ? "Adding…" : "Add need"}
+          </button>
         </div>
-        <div>
-          <label className="block text-xs font-medium mb-1.5" style={{ color: "#3A3A3A" }}>Grade range</label>
-          <input type="text" placeholder="Gr 10–12" value={gradeRange} onChange={e => setGradeRange(e.target.value)}
-            className="px-3 py-2 rounded-lg border text-sm w-32"
-            style={{ borderColor: "#E5E3DF", background: "#FFF", color: "#3A3A3A", outline: "none" }} />
-        </div>
-        <div>
-          <label className="block text-xs font-medium mb-1.5" style={{ color: "#3A3A3A" }}>Min. score</label>
-          <input type="number" min={0} max={100} value={minScore} onChange={e => setMinScore(e.target.value)}
-            className="px-3 py-2 rounded-lg border text-sm w-24"
-            style={{ borderColor: "#E5E3DF", background: "#FFF", color: "#3A3A3A", outline: "none" }} />
-        </div>
-        <div className="flex-1 min-w-[160px]">
-          <label className="block text-xs font-medium mb-1.5" style={{ color: "#3A3A3A" }}>Notes (optional)</label>
-          <input type="text" placeholder="e.g. urgent, Sandton branch" value={notes} onChange={e => setNotes(e.target.value)}
-            className="px-3 py-2 rounded-lg border text-sm w-full"
-            style={{ borderColor: "#E5E3DF", background: "#FFF", color: "#3A3A3A", outline: "none" }} />
-        </div>
-        <button type="submit" disabled={loading}
-          className="px-4 py-2 rounded-lg text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-60"
-          style={{ background: "#FD3352", color: "#FFF" }}>
-          {loading ? "Adding…" : "Add need"}
-        </button>
+
+        <GradeSelector
+          grades={grades}
+          tertiary={tertiary}
+          onChange={(g, t) => { setGrades(g); setTertiary(t) }}
+          gradesLabel="Grades this need covers" />
       </form>
 
       {error && (
@@ -118,7 +123,26 @@ export default function OpenNeedsClient({ initialNeeds }: { initialNeeds: OpenNe
             ) : needs.map((n, i) => (
               <tr key={n.id} style={{ borderTop: i > 0 ? "1px solid #F1F0EE" : undefined }}>
                 <td className="px-5 py-4 text-sm font-semibold" style={{ color: "#3A3A3A" }}>{n.subject}</td>
-                <td className="px-5 py-4 text-sm" style={{ color: "#8A8580" }}>{n.grade_range || "—"}</td>
+                <td className="px-5 py-4">
+                  <div className="flex flex-wrap gap-1">
+                    {n.grades.length === 0 && !n.tertiary ? (
+                      <span className="text-sm" style={{ color: "#8A8580" }}>—</span>
+                    ) : (
+                      <>
+                        {n.grades.map(g => (
+                          <span key={g} className="px-2 py-0.5 rounded-full text-xs" style={{ background: "#F1F0EE", color: "#3A3A3A" }}>
+                            Grade {g}
+                          </span>
+                        ))}
+                        {n.tertiary && (
+                          <span className="px-2 py-0.5 rounded-full text-xs" style={{ background: "#F1F0EE", color: "#3A3A3A" }}>
+                            Tertiary
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </td>
                 <td className="px-5 py-4 text-sm" style={{ color: "#8A8580" }}>{n.min_score}</td>
                 <td className="px-5 py-4 text-sm" style={{ color: "#8A8580" }}>{n.notes || "—"}</td>
                 <td className="px-5 py-4">

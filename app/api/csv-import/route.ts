@@ -63,6 +63,8 @@ export async function POST(request: Request) {
     const availability = splitList(availabilityRaw)
     const experience = get(row, "experience", "background", "notes")
     const hasMatric = truthy(get(row, "matric", "matric certificate"))
+    const matricMarkRaw = get(row, "matric_mark", "matric result", "matric %", "matric percentage")
+    const matricMark = matricMarkRaw ? Number(matricMarkRaw.replace("%", "")) : undefined
     const appliedAtRaw = get(row, "applied_at", "date added", "dateadded")
     const appliedAt = appliedAtRaw && !isNaN(Date.parse(appliedAtRaw)) ? new Date(appliedAtRaw).toISOString() : undefined
 
@@ -71,7 +73,7 @@ export async function POST(request: Request) {
       ? await scoreApplication(
           {
             name,
-            subjects: subjects.map(subject => ({ subject, experience, grades: gradeLevels })),
+            subjects: subjects.map(subject => ({ subject, experience, grades: gradeLevels, matricMark })),
             location: area,
             availability,
             mode,

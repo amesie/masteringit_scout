@@ -2,10 +2,9 @@
 
 import { useState } from "react"
 import { LogoFull } from "./Logo"
+import GradeSelector from "./GradeSelector"
 
 type FileState = { name: string; file: File } | null
-
-const GRADES = Array.from({ length: 12 }, (_, i) => String(i + 1))
 
 const CURRICULA = ["CAPS", "IEB", "Cambridge (CAIE)", "IB (International Baccalaureate)", "American Curriculum"]
 
@@ -54,6 +53,7 @@ interface SubjectBlockData {
   grades: string[]
   tertiary: boolean
   curriculum: string
+  matricMark: string
   experience: string
 }
 
@@ -126,58 +126,11 @@ function SubjectBlock({
         </div>
       )}
 
-      <div>
-        <label className="block text-sm font-medium mb-2" style={{ color: "#3A3A3A" }}>Grades they can tutor</label>
-        <div className="flex flex-wrap gap-2">
-          {GRADES.map(g => {
-            const checked = block.grades.includes(g)
-            return (
-              <label key={g}
-                className="flex items-center justify-center w-9 h-9 rounded-lg border text-xs font-medium cursor-pointer transition-all"
-                style={{
-                  borderColor: checked ? "#FD3352" : "#E5E3DF",
-                  background: checked ? "#FD3352" : "#FFF",
-                  color: checked ? "#FFF" : "#3A3A3A",
-                }}>
-                <input
-                  type="checkbox"
-                  className="sr-only"
-                  checked={checked}
-                  onChange={() => onChange({
-                    ...block,
-                    grades: checked ? block.grades.filter(x => x !== g) : [...block.grades, g],
-                  })} />
-                {g}
-              </label>
-            )
-          })}
-        </div>
-      </div>
-
-      <div>
-        <label
-          className="inline-flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg border text-sm cursor-pointer transition-all"
-          style={{
-            borderColor: block.tertiary ? "#FD3352" : "#E5E3DF",
-            background: block.tertiary ? "#FFF5F7" : "#FFF",
-            color: "#3A3A3A",
-          }}>
-          <input
-            type="checkbox"
-            className="sr-only"
-            checked={block.tertiary}
-            onChange={() => onChange({ ...block, tertiary: !block.tertiary })} />
-          <span className="w-4 h-4 rounded border flex items-center justify-center flex-shrink-0"
-            style={{ borderColor: block.tertiary ? "#FD3352" : "#C5C2BD", background: block.tertiary ? "#FD3352" : "transparent" }}>
-            {block.tertiary && (
-              <svg width="10" height="10" viewBox="0 0 10 10">
-                <path d="M2 5l2.5 2.5 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            )}
-          </span>
-          Tertiary / post-matric
-        </label>
-      </div>
+      <GradeSelector
+        grades={block.grades}
+        tertiary={block.tertiary}
+        onChange={(grades, tertiary) => onChange({ ...block, grades, tertiary })}
+        gradesLabel="Grades they can tutor" />
 
       <div>
         <label className="block text-sm font-medium mb-1.5" style={{ color: "#3A3A3A" }}>Curriculum</label>
@@ -197,6 +150,27 @@ function SubjectBlock({
             <path d="M2 4l4 4 4-4" stroke="#8A8580" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1.5" style={{ color: "#3A3A3A" }}>
+          Matric mark for this subject (%)
+        </label>
+        <p className="text-xs mb-2" style={{ color: "#8A8580" }}>
+          Your own matric result in this subject — used to assess your qualification level.
+        </p>
+        <input
+          type="number"
+          required
+          min={0}
+          max={100}
+          placeholder="e.g. 85"
+          value={block.matricMark}
+          onChange={e => onChange({ ...block, matricMark: e.target.value })}
+          className="w-full px-3.5 py-3 rounded-lg border text-sm"
+          style={{ borderColor: "#E5E3DF", background: "#FFF", color: "#3A3A3A", outline: "none" }}
+          onFocus={e => (e.target.style.borderColor = "#FD3352")}
+          onBlur={e => (e.target.style.borderColor = "#E5E3DF")} />
       </div>
 
       <div>
@@ -297,7 +271,7 @@ export default function IntakeForm() {
   const [cv, setCv] = useState<FileState>(null)
   const [matric, setMatric] = useState<FileState>(null)
   const [subjectBlocks, setSubjectBlocks] = useState<SubjectBlockData[]>([
-    { id: 1, subject: "", customSubject: "", grades: [], tertiary: false, curriculum: "", experience: "" },
+    { id: 1, subject: "", customSubject: "", grades: [], tertiary: false, curriculum: "", matricMark: "", experience: "" },
   ])
   const [mode, setMode] = useState("")
 
@@ -307,7 +281,7 @@ export default function IntakeForm() {
   const addSubject = () => {
     setSubjectBlocks(prev => [
       ...prev,
-      { id: nextId++, subject: "", customSubject: "", grades: [], tertiary: false, curriculum: "", experience: "" },
+      { id: nextId++, subject: "", customSubject: "", grades: [], tertiary: false, curriculum: "", matricMark: "", experience: "" },
     ])
   }
 
@@ -346,6 +320,7 @@ export default function IntakeForm() {
             grades: b.grades,
             tertiary: b.tertiary,
             curriculum: b.curriculum,
+            matricMark: Number(b.matricMark),
             experience: b.experience.trim(),
           })),
       }
