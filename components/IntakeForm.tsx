@@ -5,7 +5,28 @@ import { LogoFull } from "./Logo"
 
 type FileState = { name: string; file: File } | null
 
-const GRADE_LEVELS = ["Foundation (Gr 1–3)", "Intermediate (Gr 4–6)", "Senior (Gr 7–9)", "FET (Gr 10–12)", "Tertiary"]
+const GRADES = Array.from({ length: 12 }, (_, i) => String(i + 1))
+
+const CURRICULA = ["CAPS", "IEB", "Cambridge (CAIE)", "IB (International Baccalaureate)", "American Curriculum"]
+
+const COUNTRIES = ["South Africa"]
+
+const SUBURBS = [
+  "Johannesburg",
+  "Pretoria",
+  "Cape Town",
+  "Durban",
+  "Port Elizabeth (Gqeberha)",
+  "East London",
+  "Bloemfontein",
+  "Polokwane",
+  "Nelspruit (Mbombela)",
+  "Kimberley",
+  "Pietermaritzburg",
+  "Rustenburg",
+  "George",
+  "Other",
+]
 
 const SUBJECTS = [
   "Mathematics",
@@ -30,6 +51,9 @@ interface SubjectBlockData {
   id: number
   subject: string
   customSubject: string
+  grades: string[]
+  tertiary: boolean
+  curriculum: string
   experience: string
 }
 
@@ -101,6 +125,79 @@ function SubjectBlock({
             onBlur={e => (e.target.style.borderColor = "#E5E3DF")} />
         </div>
       )}
+
+      <div>
+        <label className="block text-sm font-medium mb-2" style={{ color: "#3A3A3A" }}>Grades they can tutor</label>
+        <div className="flex flex-wrap gap-2">
+          {GRADES.map(g => {
+            const checked = block.grades.includes(g)
+            return (
+              <label key={g}
+                className="flex items-center justify-center w-9 h-9 rounded-lg border text-xs font-medium cursor-pointer transition-all"
+                style={{
+                  borderColor: checked ? "#FD3352" : "#E5E3DF",
+                  background: checked ? "#FD3352" : "#FFF",
+                  color: checked ? "#FFF" : "#3A3A3A",
+                }}>
+                <input
+                  type="checkbox"
+                  className="sr-only"
+                  checked={checked}
+                  onChange={() => onChange({
+                    ...block,
+                    grades: checked ? block.grades.filter(x => x !== g) : [...block.grades, g],
+                  })} />
+                {g}
+              </label>
+            )
+          })}
+        </div>
+      </div>
+
+      <div>
+        <label
+          className="inline-flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg border text-sm cursor-pointer transition-all"
+          style={{
+            borderColor: block.tertiary ? "#FD3352" : "#E5E3DF",
+            background: block.tertiary ? "#FFF5F7" : "#FFF",
+            color: "#3A3A3A",
+          }}>
+          <input
+            type="checkbox"
+            className="sr-only"
+            checked={block.tertiary}
+            onChange={() => onChange({ ...block, tertiary: !block.tertiary })} />
+          <span className="w-4 h-4 rounded border flex items-center justify-center flex-shrink-0"
+            style={{ borderColor: block.tertiary ? "#FD3352" : "#C5C2BD", background: block.tertiary ? "#FD3352" : "transparent" }}>
+            {block.tertiary && (
+              <svg width="10" height="10" viewBox="0 0 10 10">
+                <path d="M2 5l2.5 2.5 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            )}
+          </span>
+          Tertiary / post-matric
+        </label>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1.5" style={{ color: "#3A3A3A" }}>Curriculum</label>
+        <div className="relative">
+          <select
+            required
+            value={block.curriculum}
+            onChange={e => onChange({ ...block, curriculum: e.target.value })}
+            className="w-full appearance-none px-3.5 pr-9 py-3 rounded-lg border text-sm"
+            style={{ borderColor: "#E5E3DF", background: "#FFF", color: block.curriculum ? "#3A3A3A" : "#8A8580", outline: "none" }}
+            onFocus={e => (e.target.style.borderColor = "#FD3352")}
+            onBlur={e => (e.target.style.borderColor = "#E5E3DF")}>
+            <option value="">Select a curriculum</option>
+            {CURRICULA.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <svg className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M2 4l4 4 4-4" stroke="#8A8580" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </div>
+      </div>
 
       <div>
         <label className="block text-sm font-medium mb-1.5" style={{ color: "#3A3A3A" }}>
@@ -192,14 +289,15 @@ export default function IntakeForm() {
   const [lastName, setLastName] = useState("")
   const [phone, setPhone] = useState("")
   const [email, setEmail] = useState("")
-  const [area, setArea] = useState("")
-  const [grades, setGrades] = useState<string[]>([])
+  const [country, setCountry] = useState(COUNTRIES[0])
+  const [suburb, setSuburb] = useState("")
+  const [customSuburb, setCustomSuburb] = useState("")
   const [days, setDays] = useState<string[]>([])
   const [times, setTimes] = useState<string[]>([])
   const [cv, setCv] = useState<FileState>(null)
   const [matric, setMatric] = useState<FileState>(null)
   const [subjectBlocks, setSubjectBlocks] = useState<SubjectBlockData[]>([
-    { id: 1, subject: "", customSubject: "", experience: "" },
+    { id: 1, subject: "", customSubject: "", grades: [], tertiary: false, curriculum: "", experience: "" },
   ])
   const [mode, setMode] = useState("")
 
@@ -207,7 +305,10 @@ export default function IntakeForm() {
     set(arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val])
 
   const addSubject = () => {
-    setSubjectBlocks(prev => [...prev, { id: nextId++, subject: "", customSubject: "", experience: "" }])
+    setSubjectBlocks(prev => [
+      ...prev,
+      { id: nextId++, subject: "", customSubject: "", grades: [], tertiary: false, curriculum: "", experience: "" },
+    ])
   }
 
   const removeSubject = (id: number) => {
@@ -234,14 +335,17 @@ export default function IntakeForm() {
         name: `${firstName.trim()} ${lastName.trim()}`.trim(),
         email: email.trim(),
         phone: phone.trim(),
-        area: area.trim(),
-        gradeLevels: grades,
+        country: country.trim(),
+        suburb: suburb === "Other" ? customSuburb.trim() : suburb,
         availability: [...days, ...times],
         mode,
         subjects: subjectBlocks
           .filter(b => b.subject)
           .map(b => ({
             subject: b.subject === "Other" ? b.customSubject.trim() : b.subject,
+            grades: b.grades,
+            tertiary: b.tertiary,
+            curriculum: b.curriculum,
             experience: b.experience.trim(),
           })),
       }
@@ -370,34 +474,54 @@ export default function IntakeForm() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2" style={{ color: "#3A3A3A" }}>Grade levels you can teach</label>
-            <div className="flex flex-wrap gap-2">
-              {GRADE_LEVELS.map(g => {
-                const active = grades.includes(g)
-                return (
-                  <button key={g} type="button"
-                    onClick={() => toggleArr(grades, g, setGrades)}
-                    className="px-3 py-1.5 rounded-full text-xs font-medium border transition-all"
-                    style={{
-                      borderColor: active ? "#FD3352" : "#E5E3DF",
-                      background: active ? "#FD3352" : "#FFF",
-                      color: active ? "#FFF" : "#3A3A3A",
-                    }}>
-                    {g}
-                  </button>
-                )
-              })}
+            <label className="block text-sm font-medium mb-1.5" style={{ color: "#3A3A3A" }}>Country</label>
+            <div className="relative">
+              <select
+                required
+                value={country}
+                onChange={e => setCountry(e.target.value)}
+                className="w-full appearance-none px-3.5 pr-9 py-3 rounded-lg border text-sm"
+                style={{ borderColor: "#E5E3DF", background: "#FFF", color: "#3A3A3A", outline: "none" }}
+                onFocus={e => (e.target.style.borderColor = "#FD3352")}
+                onBlur={e => (e.target.style.borderColor = "#E5E3DF")}>
+                {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <svg className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M2 4l4 4 4-4" stroke="#8A8580" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1.5" style={{ color: "#3A3A3A" }}>{"Area / suburb you're based in"}</label>
-            <input type="text" required placeholder="e.g. Sandton, Johannesburg" value={area} onChange={e => setArea(e.target.value)}
-              className="w-full px-3.5 py-3 rounded-lg border text-sm"
-              style={{ borderColor: "#E5E3DF", background: "#FFF", color: "#3A3A3A", outline: "none" }}
-              onFocus={e => (e.target.style.borderColor = "#FD3352")}
-              onBlur={e => (e.target.style.borderColor = "#E5E3DF")} />
+            <label className="block text-sm font-medium mb-1.5" style={{ color: "#3A3A3A" }}>{"Suburb / city you're based in"}</label>
+            <div className="relative">
+              <select
+                required
+                value={suburb}
+                onChange={e => setSuburb(e.target.value)}
+                className="w-full appearance-none px-3.5 pr-9 py-3 rounded-lg border text-sm"
+                style={{ borderColor: "#E5E3DF", background: "#FFF", color: suburb ? "#3A3A3A" : "#8A8580", outline: "none" }}
+                onFocus={e => (e.target.style.borderColor = "#FD3352")}
+                onBlur={e => (e.target.style.borderColor = "#E5E3DF")}>
+                <option value="">Select a suburb / city</option>
+                {SUBURBS.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <svg className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M2 4l4 4 4-4" stroke="#8A8580" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
           </div>
+
+          {suburb === "Other" && (
+            <div>
+              <label className="block text-sm font-medium mb-1.5" style={{ color: "#3A3A3A" }}>Please specify your suburb / town</label>
+              <input type="text" required placeholder="e.g. Stellenbosch" value={customSuburb} onChange={e => setCustomSuburb(e.target.value)}
+                className="w-full px-3.5 py-3 rounded-lg border text-sm"
+                style={{ borderColor: "#E5E3DF", background: "#FFF", color: "#3A3A3A", outline: "none" }}
+                onFocus={e => (e.target.style.borderColor = "#FD3352")}
+                onBlur={e => (e.target.style.borderColor = "#E5E3DF")} />
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium mb-2" style={{ color: "#3A3A3A" }}>Availability</label>

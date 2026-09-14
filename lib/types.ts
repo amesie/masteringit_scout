@@ -14,6 +14,9 @@ export interface SubjectScoreEntry {
   matric_result: string
   experience: string
   rationale: string
+  grades: string[]
+  tertiary: boolean
+  curriculum: string
 }
 
 export interface Applicant {
@@ -27,6 +30,8 @@ export interface Applicant {
   rate: number | null
   location_pref: string | null
   area: string | null
+  country: string | null
+  suburb: string | null
   availability: string | null
   match_score: number | null
   score_rationale: string | null

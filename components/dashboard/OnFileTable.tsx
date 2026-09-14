@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import { applicantLocation } from "@/lib/status"
 import { Chip } from "./Pill"
 import PhoneReveal from "./PhoneReveal"
 import ApplicantDrawer from "./ApplicantDrawer"
@@ -69,7 +70,7 @@ export default function OnFileTable({ initialApplicants }: { initialApplicants: 
         <table className="w-full">
           <thead>
             <tr style={{ borderBottom: "1px solid #E5E3DF", background: "#F5F4F2" }}>
-              {["Name & Surname", "Subject(s)", "Area", "Contact", "Dormant Since", ""].map(h => (
+              {["Name & Surname", "Subject(s)", "Location", "Contact", "Dormant Since", ""].map(h => (
                 <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider"
                   style={{ color: "#8A8580" }}>{h}</th>
               ))}
@@ -104,7 +105,7 @@ export default function OnFileTable({ initialApplicants }: { initialApplicants: 
                   </div>
                 </td>
                 <td className="px-5 py-4">
-                  <span className="text-sm" style={{ color: "#8A8580" }}>{a.area || "—"}</span>
+                  <span className="text-sm" style={{ color: "#8A8580" }}>{applicantLocation(a)}</span>
                 </td>
                 <td className="px-5 py-4" onClick={e => e.stopPropagation()}>
                   <div className="flex items-center gap-0.5">

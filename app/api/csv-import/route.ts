@@ -71,9 +71,8 @@ export async function POST(request: Request) {
       ? await scoreApplication(
           {
             name,
-            subjects: subjects.map(subject => ({ subject, experience })),
-            gradeLevels,
-            area,
+            subjects: subjects.map(subject => ({ subject, experience, grades: gradeLevels })),
+            location: area,
             availability,
             mode,
             hasMatric,

@@ -38,9 +38,14 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const scoring = await scoreApplication(
     {
       name: applicant.name,
-      subjects: applicant.subject_scores.map(s => ({ subject: s.subject, experience: s.experience })),
-      gradeLevels: (applicant.grade_range || "").split(",").map(s => s.trim()).filter(Boolean),
-      area: applicant.area || "",
+      subjects: applicant.subject_scores.map(s => ({
+        subject: s.subject,
+        experience: s.experience,
+        grades: s.grades,
+        tertiary: s.tertiary,
+        curriculum: s.curriculum,
+      })),
+      location: [applicant.suburb, applicant.country].filter(Boolean).join(", ") || applicant.area || "",
       availability: (applicant.availability || "").split(",").map(s => s.trim()).filter(Boolean),
       mode: applicant.location_pref || "",
       hasMatric: !!applicant.matric_file_url,

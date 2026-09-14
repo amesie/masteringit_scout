@@ -1,4 +1,13 @@
-import type { ApplicantStatus, SubjectMatchStatus } from "@/lib/types"
+import type { Applicant, ApplicantStatus, SubjectMatchStatus } from "@/lib/types"
+
+// Structured country/suburb (new /apply submissions) take priority — but
+// only once a suburb is actually set. Older/CSV-imported rows only ever had
+// the freeform `area` text; falling back on `country` alone would show a
+// bare "South Africa" and hide the real imported location.
+export function applicantLocation(a: Pick<Applicant, "country" | "suburb" | "area">): string {
+  if (a.suburb) return [a.suburb, a.country].filter(Boolean).join(", ")
+  return a.area || "—"
+}
 
 // Subject-level match status — lifted directly from the Figma prototype's
 // STATUS_CONFIG (design-reference/src/components/Dashboard.tsx).

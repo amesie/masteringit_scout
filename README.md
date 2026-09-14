@@ -14,6 +14,9 @@ CLI. So the schema has to be applied by hand, once:
 
 1. Open the Supabase project → **SQL Editor**.
 2. Paste the contents of `supabase/migrations/0001_init.sql` and run it.
+3. Paste the contents of `supabase/migrations/0002_structured_intake.sql` and
+   run it too — adds the `country`/`suburb` columns used by the current
+   `/apply` form.
 
 This creates the `applicants`, `profiles`, and `open_needs` tables, RLS
 policies, and a private `applicant-documents` storage bucket for CVs/matric
@@ -70,6 +73,14 @@ from the Supabase dashboard → Project Settings → API).
   where "current criteria" should live). If the model's response can't be
   parsed or it reports low confidence, the applicant is inserted with
   `needs_review = true` and a reason — never silently guessed or dropped.
+- **Grades/curriculum are per-subject, not global**: each entry in
+  `applicants.subject_scores` (jsonb) carries its own `grades`, `tertiary`,
+  and `curriculum` — an applicant can apply to tutor CAPS Grade 8–10 Maths
+  and IEB Tertiary Accounting in the same submission. `country`/`suburb` are
+  the only applicant-level location fields now; `area` and `grade_range`
+  remain on the table purely for CSV-imported/older rows that predate this
+  structure (see `lib/status.ts`'s `applicantLocation()` for the fallback
+  the dashboard uses).
 - **Dormant lifecycle**: `/api/cron/dormant-check`, scheduled nightly via
   `vercel.json`. Reactivates dormant applicants that now match an open need;
   flags applicants dormant 12+ months for manual review. Never deletes or

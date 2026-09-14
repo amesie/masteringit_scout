@@ -4,16 +4,26 @@ import type { OpenNeed, SubjectMatchStatus, SubjectScoreEntry } from "@/lib/type
 export interface ScoringSubjectInput {
   subject: string
   experience: string
+  grades?: string[]
+  tertiary?: boolean
+  curriculum?: string
 }
 
 export interface ScoringInput {
   name: string
   subjects: ScoringSubjectInput[]
-  gradeLevels: string[]
-  area: string
+  location: string
   availability: string[]
   mode: string
   hasMatric: boolean
+}
+
+function formatGrade(g: string): string {
+  return /^\d+$/.test(g) ? `Grade ${g}` : g
+}
+
+function gradeLabels(s: ScoringSubjectInput): string {
+  return [...(s.grades ?? []).map(formatGrade), ...(s.tertiary ? ["Tertiary"] : [])].join(", ") || "(not specified)"
 }
 
 export interface ScoringResult {
@@ -51,15 +61,16 @@ function buildPrompt(input: ScoringInput, openNeeds: OpenNeed[]): string {
     : "(No specific open needs recorded — assess purely on merit.)"
 
   const subjectsList = input.subjects
-    .map(s => `Subject: ${s.subject}\nApplicant's stated experience: ${s.experience || "(not provided)"}`)
+    .map(s =>
+      `Subject: ${s.subject}\nGrades applied for: ${gradeLabels(s)}\nCurriculum: ${s.curriculum || "(not specified)"}\nApplicant's stated experience: ${s.experience || "(not provided)"}`
+    )
     .join("\n\n")
 
   return `Current hiring needs:
 ${needsList}
 
 Applicant: ${input.name}
-Grade levels applied for: ${input.gradeLevels.join(", ") || "(not specified)"}
-Area: ${input.area || "(not specified)"}
+Location: ${input.location || "(not specified)"}
 Availability: ${input.availability.join(", ") || "(not specified)"}
 Teaching mode: ${input.mode || "(not specified)"}
 Matric certificate uploaded: ${input.hasMatric ? "yes" : "no"}
@@ -82,6 +93,9 @@ export async function scoreApplication(
       matric_result: input.hasMatric ? "Uploaded — not yet reviewed" : "Not uploaded",
       experience: s.experience,
       rationale: "Automated scoring unavailable.",
+      grades: s.grades ?? [],
+      tertiary: s.tertiary ?? false,
+      curriculum: s.curriculum ?? "",
     })),
     needsReview: true,
     reviewReason: "SCOUT could not automatically score this application — needs manual review.",
@@ -134,6 +148,9 @@ export async function scoreApplication(
         : "Not uploaded",
       experience: original?.experience ?? "",
       rationale: typeof s.rationale === "string" ? s.rationale : "",
+      grades: original?.grades ?? [],
+      tertiary: original?.tertiary ?? false,
+      curriculum: original?.curriculum ?? "",
     })
   }
 

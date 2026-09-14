@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { SUBJECT_STATUS_CONFIG, APPLICANT_STATUS_CONFIG } from "@/lib/status"
+import { SUBJECT_STATUS_CONFIG, APPLICANT_STATUS_CONFIG, applicantLocation } from "@/lib/status"
 import type { Applicant, ApplicantStatus, SubjectMatchStatus, SubjectScoreEntry } from "@/lib/types"
 import { updateApplicantStatus, updateSubjectScores, keepOnFile, markContacted, getDocumentUrl, deleteApplicant, rescoreApplicant } from "./applicantActions"
 import { Pill } from "./Pill"
@@ -64,6 +64,26 @@ function SubjectCard({ entry, hasMatricFile, onAction }: {
           <div className="px-4 py-3 rounded-lg border-l-4" style={{ background: "#F1F0EE", borderColor: "#C5C2BD" }}>
             <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "#5A5652" }}>Missing Information</p>
             <p className="text-xs" style={{ color: "#5A5652" }}>Matric certificate has not been uploaded — result unverified.</p>
+          </div>
+        )}
+
+        {(entry.grades?.length > 0 || entry.tertiary || entry.curriculum) && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {entry.grades?.map(g => (
+              <span key={g} className="px-2 py-0.5 rounded-full text-xs" style={{ background: "#F1F0EE", color: "#3A3A3A" }}>
+                Grade {g}
+              </span>
+            ))}
+            {entry.tertiary && (
+              <span className="px-2 py-0.5 rounded-full text-xs" style={{ background: "#F1F0EE", color: "#3A3A3A" }}>
+                Tertiary
+              </span>
+            )}
+            {entry.curriculum && (
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: "#FFF5F7", color: "#FD3352" }}>
+                {entry.curriculum}
+              </span>
+            )}
           </div>
         )}
 
@@ -394,7 +414,7 @@ export default function ApplicantDrawer({
             <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "#8A8580" }}>Details</h3>
             <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
               {[
-                { label: "Area", value: applicant.area || "—" },
+                { label: "Location", value: applicantLocation(applicant) },
                 { label: "Mode", value: applicant.location_pref || "—" },
                 { label: "Availability", value: applicant.availability || "—" },
               ].map(({ label, value }) => (
@@ -403,15 +423,6 @@ export default function ApplicantDrawer({
                   <dd className="text-sm font-medium mt-0.5" style={{ color: "#3A3A3A" }}>{value}</dd>
                 </div>
               ))}
-              <div className="col-span-2">
-                <dt className="text-xs" style={{ color: "#8A8580" }}>Grade levels</dt>
-                <dd className="flex flex-wrap gap-1.5 mt-1">
-                  {(applicant.grade_range || "").split(",").filter(Boolean).map(g => (
-                    <span key={g} className="px-2 py-0.5 rounded-full text-xs"
-                      style={{ background: "#F1F0EE", color: "#3A3A3A" }}>{g.trim()}</span>
-                  ))}
-                </dd>
-              </div>
             </dl>
           </section>
 

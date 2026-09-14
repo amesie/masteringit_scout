@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { SUBJECT_STATUS_CONFIG, APPLICANT_STATUS_CONFIG } from "@/lib/status"
+import { SUBJECT_STATUS_CONFIG, APPLICANT_STATUS_CONFIG, applicantLocation } from "@/lib/status"
 import type { Applicant, ApplicantStatus } from "@/lib/types"
 import { Pill, Chip } from "./Pill"
 import PhoneReveal from "./PhoneReveal"
@@ -81,7 +81,7 @@ export default function ApplicantsTable({ initialApplicants }: { initialApplican
         <table className="w-full">
           <thead>
             <tr style={{ borderBottom: "1px solid #E5E3DF", background: "#FAFAF8" }}>
-              {["Name & Surname", "Status", "Subjects", "Area", "Top Rationale", "Contact", ""].map(h => (
+              {["Name & Surname", "Status", "Subjects", "Location", "Top Rationale", "Contact", ""].map(h => (
                 <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider"
                   style={{ color: "#8A8580" }}>{h}</th>
               ))}
@@ -132,7 +132,7 @@ export default function ApplicantsTable({ initialApplicants }: { initialApplican
                     )}
                   </td>
                   <td className="px-5 py-4">
-                    <span className="text-sm" style={{ color: "#8A8580" }}>{a.area || "—"}</span>
+                    <span className="text-sm" style={{ color: "#8A8580" }}>{applicantLocation(a)}</span>
                   </td>
                   <td className="px-5 py-4 max-w-[200px]">
                     <span className="text-xs leading-relaxed" style={{ color: "#8A8580" }}>

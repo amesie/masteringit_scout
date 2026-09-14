@@ -8,8 +8,8 @@ interface ApplyPayload {
   name: string
   email: string
   phone: string
-  area: string
-  gradeLevels: string[]
+  country: string
+  suburb: string
   availability: string[]
   mode: string
   subjects: ScoringSubjectInput[]
@@ -79,14 +79,14 @@ export async function POST(request: Request) {
   const openNeeds = (openNeedsData ?? []) as OpenNeed[]
 
   const canScore = validSubjects.length > 0
+  const location = [payload.suburb, payload.country].filter(Boolean).join(", ")
 
   const scoring = canScore
     ? await scoreApplication(
         {
           name: payload.name,
           subjects: validSubjects,
-          gradeLevels: payload.gradeLevels || [],
-          area: payload.area,
+          location,
           availability: payload.availability || [],
           mode: payload.mode,
           hasMatric,
@@ -111,9 +111,10 @@ export async function POST(request: Request) {
     email: payload.email,
     phone: payload.phone,
     subjects: validSubjects.map(s => s.subject),
-    grade_range: (payload.gradeLevels || []).join(", ") || null,
     location_pref: payload.mode || null,
-    area: payload.area || null,
+    country: payload.country || null,
+    suburb: payload.suburb || null,
+    area: location || null,
     availability: (payload.availability || []).join(", ") || null,
     match_score: scoring.matchScore,
     score_rationale: scoring.scoreRationale,
