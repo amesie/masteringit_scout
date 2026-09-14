@@ -4,7 +4,7 @@ import { useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { SUBJECT_STATUS_CONFIG, APPLICANT_STATUS_CONFIG, applicantLocation } from "@/lib/status"
 import type { Applicant, ApplicantStatus, SubjectMatchStatus, SubjectScoreEntry } from "@/lib/types"
-import { updateApplicantStatus, updateSubjectScores, keepOnFile, markContacted, getDocumentUrl, deleteApplicant, rescoreApplicant } from "./applicantActions"
+import { updateApplicantStatus, updateSubjectScores, keepOnFile, markContacted, getDocumentUrl, deleteApplicant, rescoreApplicant, draftOutreach, sendOutreach } from "./applicantActions"
 import { Pill } from "./Pill"
 
 const STATUS_OPTIONS: ApplicantStatus[] = [
@@ -196,6 +196,10 @@ export default function ApplicantDrawer({
   const [rescoring, setRescoring] = useState(false)
   const [rescoreError, setRescoreError] = useState<string | null>(null)
   const [rescoreNote, setRescoreNote] = useState<string | null>(null)
+  const [draftingOutreach, setDraftingOutreach] = useState(false)
+  const [outreachError, setOutreachError] = useState<string | null>(null)
+  const [sendingOutreach, setSendingOutreach] = useState(false)
+  const [outreachSent, setOutreachSent] = useState(false)
 
   const copy = (val: string) => {
     navigator.clipboard.writeText(val).catch(() => {})
@@ -206,6 +210,37 @@ export default function ApplicantDrawer({
   const qualified = applicant.subject_scores.filter(s => s.status === "meets").length
   const total = applicant.subject_scores.length
   const statusCfg = APPLICANT_STATUS_CONFIG[applicant.status]
+
+  const handleDraftOutreach = async () => {
+    setDraftingOutreach(true)
+    setOutreachError(null)
+    setOutreachSent(false)
+    const { applicant: updated, error } = await draftOutreach(applicant.id)
+    setDraftingOutreach(false)
+    if (error || !updated) {
+      setOutreachError(error || "Could not draft an outreach email.")
+      return
+    }
+    onUpdated(updated)
+  }
+
+  const handleSendOutreach = async () => {
+    if (!applicant.outreach_draft_subject || !applicant.outreach_draft_body) return
+    setSendingOutreach(true)
+    setOutreachError(null)
+    const { applicant: updated, error } = await sendOutreach(
+      applicant.id,
+      applicant.outreach_draft_subject,
+      applicant.outreach_draft_body
+    )
+    setSendingOutreach(false)
+    if (error || !updated) {
+      setOutreachError(error || "Could not send the email.")
+      return
+    }
+    setOutreachSent(true)
+    onUpdated(updated)
+  }
 
   const handleStatusChange = async (status: ApplicantStatus) => {
     setStatusSaving(true)
@@ -218,6 +253,11 @@ export default function ApplicantDrawer({
         status,
         dormant_since: status === "dormant" ? new Date().toISOString() : null,
       })
+      // Draft an interview-invite the moment someone is shortlisted — never
+      // sent automatically, just ready for a person to review and send.
+      if (status === "shortlisted" && !applicant.outreach_draft_subject) {
+        handleDraftOutreach()
+      }
     }
   }
 
@@ -394,6 +434,56 @@ export default function ApplicantDrawer({
             )}
           </section>
 
+          {(applicant.outreach_draft_subject || applicant.status === "shortlisted") && (
+            <section>
+              <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "#8A8580" }}>
+                Outreach email draft
+              </h3>
+
+              {applicant.outreach_draft_subject && applicant.outreach_draft_body ? (
+                <div className="flex flex-col gap-3">
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: "#3A3A3A" }}>Subject</label>
+                    <input type="text" value={applicant.outreach_draft_subject}
+                      onChange={e => onUpdated({ ...applicant, outreach_draft_subject: e.target.value })}
+                      className="w-full px-3.5 py-2.5 rounded-lg border text-sm"
+                      style={{ borderColor: "#E5E3DF", background: "#FFF", color: "#3A3A3A", outline: "none" }} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: "#3A3A3A" }}>Body</label>
+                    <textarea rows={6} value={applicant.outreach_draft_body}
+                      onChange={e => onUpdated({ ...applicant, outreach_draft_body: e.target.value })}
+                      className="w-full px-3.5 py-2.5 rounded-lg border text-sm resize-none"
+                      style={{ borderColor: "#E5E3DF", background: "#FFF", color: "#3A3A3A", outline: "none" }} />
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={handleSendOutreach} disabled={sendingOutreach || !applicant.email}
+                      className="flex-1 py-2.5 rounded-lg text-xs font-semibold transition-opacity hover:opacity-90 disabled:opacity-60"
+                      style={{ background: "#FD3352", color: "#FFF" }}>
+                      {sendingOutreach ? "Sending…" : "Send email"}
+                    </button>
+                    <button onClick={handleDraftOutreach} disabled={draftingOutreach}
+                      className="py-2.5 px-3 rounded-lg text-xs font-semibold border transition-colors hover:bg-gray-50 disabled:opacity-60"
+                      style={{ borderColor: "#E5E3DF", color: "#3A3A3A", background: "#FFF" }}>
+                      {draftingOutreach ? "Regenerating…" : "Regenerate"}
+                    </button>
+                  </div>
+                  {!applicant.email && (
+                    <p className="text-xs" style={{ color: "#B0253C" }}>This applicant has no email address on file.</p>
+                  )}
+                </div>
+              ) : (
+                <button onClick={handleDraftOutreach} disabled={draftingOutreach}
+                  className="text-xs font-semibold hover:underline disabled:opacity-60" style={{ color: "#FD3352" }}>
+                  {draftingOutreach ? "Drafting an interview-invite email…" : "Generate draft"}
+                </button>
+              )}
+
+              {outreachError && <p className="text-xs mt-2" style={{ color: "#B0253C" }}>{outreachError}</p>}
+              {outreachSent && <p className="text-xs mt-2" style={{ color: "#1A7A47" }}>Email sent.</p>}
+            </section>
+          )}
+
           <section>
             <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "#8A8580" }}>Contact</h3>
             <div className="flex flex-col gap-2">
@@ -476,7 +566,17 @@ export default function ApplicantDrawer({
                     <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
                   </svg>
                   <span className="text-sm font-medium" style={{ color: "#3A3A3A" }}>{applicant.matric_file_name}</span>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="ml-auto opacity-40 group-hover:opacity-100" style={{ color: "#FD3352" }}>
+                  {applicant.matric_verified != null && (
+                    <span className="ml-auto px-2 py-0.5 rounded-full text-xs font-medium"
+                      style={applicant.matric_verified
+                        ? { background: "#E8F7EF", color: "#1A7A47" }
+                        : { background: "#FDE8EC", color: "#B0253C" }}>
+                      {applicant.matric_verified ? "Verified" : "Discrepancy found"}
+                    </span>
+                  )}
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                    className={applicant.matric_verified == null ? "ml-auto opacity-40 group-hover:opacity-100" : "opacity-40 group-hover:opacity-100"}
+                    style={{ color: "#FD3352" }}>
                     <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </button>

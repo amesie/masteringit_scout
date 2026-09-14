@@ -11,21 +11,35 @@
 // Callers only see generateContent(prompt, systemInstructions) => string,
 // so nothing else in the codebase needs to change.
 
-const GEMINI_MODEL = "gemini-2.5-flash"
+const GEMINI_MODEL = "gemini-3.6-flash"
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 
-export async function generateContent(prompt: string, systemInstructions?: string): Promise<string> {
+export interface GeneratedContentAttachment {
+  mimeType: string
+  data: Buffer
+}
+
+export async function generateContent(
+  prompt: string,
+  systemInstructions?: string,
+  attachment?: GeneratedContentAttachment
+): Promise<string> {
   const apiKey = process.env.scout_gemini_api
 
   if (!apiKey) {
     throw new Error("Missing scout_gemini_api environment variable — required for AI calls.")
   }
 
+  const parts: Record<string, unknown>[] = [{ text: prompt }]
+  if (attachment) {
+    parts.push({ inlineData: { mimeType: attachment.mimeType, data: attachment.data.toString("base64") } })
+  }
+
   const res = await fetch(`${GEMINI_ENDPOINT}?key=${apiKey}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      contents: [{ role: "user", parts }],
       ...(systemInstructions
         ? { systemInstruction: { role: "system", parts: [{ text: systemInstructions }] } }
         : {}),

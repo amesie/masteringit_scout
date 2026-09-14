@@ -56,6 +56,9 @@ export interface Applicant {
   cv_file_url: string | null
   matric_file_name: string | null
   matric_file_url: string | null
+  matric_verified: boolean | null
+  outreach_draft_subject: string | null
+  outreach_draft_body: string | null
   raw_submission: Record<string, unknown> | null
   created_at: string
   updated_at: string

@@ -73,3 +73,31 @@ export async function rescoreApplicant(
   }
   return { applicant: body.applicant as Applicant, error: null }
 }
+
+export async function draftOutreach(
+  id: string
+): Promise<{ applicant: Applicant | null; error: string | null }> {
+  const res = await fetch(`/api/applicants/${id}/draft-outreach`, { method: "POST" })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    return { applicant: null, error: body.error || "Could not draft an outreach email." }
+  }
+  return { applicant: body.applicant as Applicant, error: null }
+}
+
+export async function sendOutreach(
+  id: string,
+  subject: string,
+  body: string
+): Promise<{ applicant: Applicant | null; error: string | null }> {
+  const res = await fetch(`/api/applicants/${id}/send-outreach`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ subject, body }),
+  })
+  const responseBody = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    return { applicant: null, error: responseBody.error || "Could not send the email." }
+  }
+  return { applicant: responseBody.applicant as Applicant, error: null }
+}

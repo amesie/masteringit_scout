@@ -34,3 +34,17 @@ export async function sendApplicantConfirmation(to: string, name: string): Promi
     text: `Hi ${firstName},\n\nThanks for applying to tutor with MasteringIt. We've received your application and will be in touch if there's a match.\n\n— MasteringIt`,
   })
 }
+
+// General-purpose send, used for staff-reviewed outreach (e.g. the
+// shortlist interview-invite draft) — unlike sendApplicantConfirmation,
+// content here is written/edited by a person before this is ever called.
+export async function sendEmail(to: string, subject: string, body: string): Promise<void> {
+  const user = process.env.scout_email_user
+
+  await getTransporter().sendMail({
+    from: `"MasteringIt" <${user}>`,
+    to,
+    subject,
+    text: body,
+  })
+}

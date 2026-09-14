@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { scoreApplication, type ScoringSubjectInput } from "@/lib/scoring"
 import { sendApplicantConfirmation } from "@/lib/email"
+import { verifyMatricMarks } from "@/lib/verification"
 import type { OpenNeed } from "@/lib/types"
 
 interface ApplyPayload {
@@ -143,6 +144,41 @@ export async function POST(request: Request) {
     await sendApplicantConfirmation(payload.email, payload.name)
   } catch (err) {
     console.error("Failed to send applicant confirmation email:", err instanceof Error ? err.message : err)
+  }
+
+  // Best-effort: cross-check self-reported marks against the certificate
+  // itself, reusing the file already in memory rather than re-downloading
+  // it from storage. Never blocks or fails the submission — a failure here
+  // just leaves matric_verified null (not yet checked).
+  if (matricFile && scoring.subjectScores.length > 0) {
+    try {
+      const fileBuffer = Buffer.from(await matricFile.arrayBuffer())
+      const verification = await verifyMatricMarks(
+        scoring.subjectScores,
+        fileBuffer,
+        matricFile.type || "application/octet-stream"
+      )
+
+      if (verification.verified != null) {
+        const reviewReason =
+          verification.mismatches.length > 0
+            ? [scoring.reviewReason, `Matric verification found discrepancies: ${verification.mismatches.join(" ")}`]
+                .filter(Boolean)
+                .join(" ")
+            : scoring.reviewReason
+
+        await admin
+          .from("applicants")
+          .update({
+            matric_verified: verification.verified,
+            needs_review: scoring.needsReview || !verification.verified,
+            review_reason: reviewReason,
+          })
+          .eq("id", applicantId)
+      }
+    } catch (err) {
+      console.error("Matric verification failed:", err instanceof Error ? err.message : err)
+    }
   }
 
   return NextResponse.json({ ok: true })
