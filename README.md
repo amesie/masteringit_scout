@@ -48,26 +48,25 @@ File** only happens via an explicit staff action (marking Shortlisted, or
 
 Applicants get a neutral "we've received your application" email after
 submitting `/apply` (`lib/email.ts`). There's no verified sending domain for
-masteringit.co.za, so this goes through SendGrid's SMTP relay (free tier —
-100 emails/day) rather than a dedicated mailbox. (An earlier version sent
-directly over Gmail SMTP from a dedicated account; Google's automated abuse
-detection flagged/suspended that account, which is exactly the kind of risk
-a real transactional provider is built to avoid.)
+masteringit.co.za, so this sends over Gmail SMTP instead of a transactional
+email API.
 
-1. Create a free [SendGrid](https://sendgrid.com) account.
-2. **Settings → Sender Authentication → Verify a Single Sender.** Fill in
-   the form using the address you want applicants to see mail from (e.g.
-   your Proton Mail address) — this only sends a confirmation link to that
-   inbox to click, it does **not** need SMTP/IMAP access to that account
-   (Proton in particular only exposes SMTP through Bridge, a paid-plan
-   desktop app that has to run on an always-on machine — not compatible
-   with a serverless deploy, so don't go looking for Proton SMTP settings).
-3. **Settings → API Keys → Create API Key** — Restricted Access, with only
-   **Mail Send** permission. Copy it now; SendGrid only shows it once.
-4. In Vercel → Project Settings → Environment Variables, add:
-   - `scout_email_from` = the address you verified in step 2
-   - `scout_email_api_key` = the API key from step 3
-5. Redeploy.
+This needs an **existing, already-established Gmail account** — not a
+fresh one created just for this. A brand-new account used right away for
+automated sending reads as bot-like to Google's abuse detection (this
+happened once already: a dedicated throwaway account got flagged/suspended
+almost immediately; a detour through SendGrid hit the identical problem
+verifying a freshly-made Proton address as its sender). An account with
+real history doesn't trip that.
+
+1. On that Gmail account: **Google Account → Security → 2-Step
+   Verification** (turn it on) **→ App Passwords** → generate one for
+   "Mail".
+2. In Vercel → Project Settings → Environment Variables, add:
+   - `scout_email_user` = the Gmail address
+   - `scout_email_password` = the 16-character App Password (not the
+     account's real password)
+3. Redeploy.
 
 If these aren't set, or sending fails for any reason, the application is
 still saved normally — the email is best-effort and never blocks a
@@ -109,13 +108,14 @@ from the Supabase dashboard → Project Settings → API).
   as "couldn't do this right now," never as a reason to block or guess.
 - **Email abstraction**: `lib/email.ts` (`sendApplicantConfirmation()` and
   `sendEmail()`) is the only file that sends applicant-facing email — over
-  SendGrid's SMTP relay via `scout_email_from`/`scout_email_api_key` (see
-  setup step 4 above). The confirmation email's content is a neutral
-  acknowledgment of receipt only, per the build spec guardrail against
-  automated rejections or status messages; `sendEmail()` is used for the
-  shortlist outreach draft, whose content a person has already reviewed.
-  Both are called fire-and-forget — a send failure is logged but never
-  fails the request that triggered it.
+  Gmail SMTP via `scout_email_user`/`scout_email_password` (see setup step
+  4 above), from an existing, already-established personal account rather
+  than a freshly created one (see that step for why). The confirmation
+  email's content is a neutral acknowledgment of receipt only, per the
+  build spec guardrail against automated rejections or status messages;
+  `sendEmail()` is used for the shortlist outreach draft, whose content a
+  person has already reviewed. Both are called fire-and-forget — a send
+  failure is logged but never fails the request that triggered it.
 - **Scoring**: `lib/scoring.ts` computes a 0–100 score per subject from 4
   categories worth 25 points each, no AI involved:
   1. **Matric mark** — the applicant's self-reported mark for that subject,
