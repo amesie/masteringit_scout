@@ -4,6 +4,68 @@ Tutor applicant intake, scoring, and shortlisting for MasteringIt. Next.js (App 
 
 See `scout_build_spec.md` for the original spec.
 
+## What SCOUT does
+
+SCOUT automates tutor applicant intake, scoring, and shortlisting for
+MasteringIt, a South African tutoring and career-services business. It has
+two entry points:
+
+- **`/apply`** — a public form prospective tutors fill in without creating
+  an account: one or more subjects, each with its own grade range (1–12 or
+  tertiary), curriculum (CAPS, IEB, Cambridge, IB, or American), self-reported
+  matric mark, experience, location, teaching mode, and a CV + matric
+  certificate upload.
+- **`/dashboard`** — a login-gated area where the owner and staff review,
+  score, and act on every application.
+
+Between the two sits an automated pipeline:
+
+1. **Score** — the moment an application is submitted, a deterministic
+   formula (`lib/scoring.ts`) scores every subject out of 100 across four
+   equal 25-point categories: matric mark, whether the subject matches a
+   current Hiring Need, whether the grade range matches, and whether the
+   applicant's mode/location fits that need's notes. No AI and no external
+   dependency in this step — fully explainable and reproducible.
+2. **Verify** — if a matric certificate was attached, an AI model
+   (`lib/verification.ts`) reads it and cross-checks the mark against what
+   the applicant typed, flagging a mismatch for manual review rather than
+   silently trusting or rejecting it.
+3. **Review** — every new applicant lands in the plain **Applicants** queue
+   regardless of score, with the full breakdown, documents, and contact
+   details on hand.
+4. **Shortlist** — marking someone Shortlisted auto-drafts a personalised
+   interview-invite email for staff to review and send (never sent
+   automatically), and moves them into a dedicated **On File** view.
+5. **Stay in touch** — a nightly job re-checks the On File pool against
+   current Hiring Needs, reactivating anyone who now matches, and flags
+   anyone on file 12+ months for a human decision — SCOUT never deletes or
+   archives anyone on its own (a POPIA data-retention consideration from
+   the original build spec).
+
+Every AI-influenced step keeps a person in the loop: SCOUT never rejects an
+applicant automatically, never sends anything beyond a neutral receipt
+confirmation without a human clicking Send, and never deletes a record.
+
+## For markers / evaluators
+
+**Using the live app**: log into the deployed dashboard with the demo staff
+account credentials provided separately (not committed to this repo) — the
+same dashboard the owner and staff use: **Applicants**, **On File**,
+**Hiring Needs**, **Import CSV**. Submitting a test application at `/apply`
+runs the full pipeline above end to end, including the confirmation email.
+
+**Checking the database directly**: `supabase/migrations/0006_marker_readonly_role.sql`
+creates a `scout_marker` Postgres role that can `SELECT` from every table
+in the `public` schema (`applicants`, `open_needs`, `profiles`) and nothing
+else — no write access, no access to `auth`/`storage` internals, no
+Supabase account needed. Connect with any Postgres client — e.g.
+[TablePlus](https://tableplus.com) or [DBeaver](https://dbeaver.io), both
+free — using the connection details from Supabase → Project Settings →
+Database, with `scout_marker` as the username. The actual password is
+shared separately from this repo; since the tables hold real applicant
+personal information, access is meant to be revoked
+(`drop role scout_marker;`) once grading is complete.
+
 ## One-time setup (do this before using the app)
 
 ### 1. Apply the database schema
@@ -22,6 +84,12 @@ CLI. So the schema has to be applied by hand, once:
 5. Paste the contents of `supabase/migrations/0004_deterministic_scoring.sql`
    and run it — adds structured `grades`/`tertiary` columns to `open_needs`,
    used by the deterministic scoring formula below.
+6. Paste the contents of `supabase/migrations/0005_ai_verification_outreach.sql`
+   and run it — adds `matric_verified`, `outreach_draft_subject`, and
+   `outreach_draft_body` to `applicants`.
+7. *(Optional, for evaluators)* Paste the contents of
+   `supabase/migrations/0006_marker_readonly_role.sql` — see "For markers /
+   evaluators" above.
 
 This creates the `applicants`, `profiles`, and `open_needs` tables, RLS
 policies, and a private `applicant-documents` storage bucket for CVs/matric
