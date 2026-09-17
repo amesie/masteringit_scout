@@ -46,6 +46,8 @@ Every AI-influenced step keeps a person in the loop: SCOUT never rejects an
 applicant automatically, never sends anything beyond a neutral receipt
 confirmation without a human clicking Send, and never deletes a record.
 
+To view more documentation for the development of SCOUT, visit: https://drive.google.com/drive/folders/1-7r-ANJDiiBpH1dX__ukSTNxZY7cJ44a?usp=sharing
+
 ## For markers / evaluators
 
 **Using the live app**: log into the deployed dashboard with the demo staff
