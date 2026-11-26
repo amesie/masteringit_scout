@@ -72,8 +72,8 @@ function validatePayload(payload: ApplyPayload): string | null {
   ) {
     return "Please select at least one language you're comfortable teaching in."
   }
-  if (typeof payload.policeClearance !== "boolean") {
-    return "Invalid police clearance value."
+  if (payload.policeClearance !== true) {
+    return "You must be able to obtain a police clearance certificate to apply."
   }
   if (payload.popiaConsent !== true) {
     return "POPIA consent is required to submit an application."

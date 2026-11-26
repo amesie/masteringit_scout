@@ -307,6 +307,10 @@ export default function IntakeForm() {
       setError("Please select at least one language you're comfortable teaching in.")
       return
     }
+    if (!policeClearance) {
+      setError("Please confirm you are able to obtain a police clearance certificate to submit your application.")
+      return
+    }
     if (!popiaConsent) {
       setError("Please tick the POPIA consent box to submit your application.")
       return
@@ -623,7 +627,7 @@ export default function IntakeForm() {
 
           <div>
             <label className="block text-sm font-medium mb-2" style={{ color: "#3A3A3A" }}>Police clearance</label>
-            <TickBox checked={policeClearance} onChange={setPoliceClearance}>
+            <TickBox checked={policeClearance} onChange={setPoliceClearance} required>
               I am able to obtain a police clearance certificate if required.
             </TickBox>
           </div>
