@@ -2,6 +2,7 @@ export type ApplicantStatus =
   | "active"
   | "shortlisted"
   | "interviewed"
+  | "successful"
   | "rejected"
   | "dormant"
   | "archived"
@@ -55,6 +56,7 @@ export interface Applicant {
   review_reason: string | null
   applied_at: string
   dormant_since: string | null
+  successful_at: string | null
   last_contacted: string | null
   source: string
   cv_file_name: string | null

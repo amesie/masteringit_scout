@@ -1,18 +1,13 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { SUBJECT_STATUS_CONFIG, APPLICANT_STATUS_CONFIG, applicantLocation } from "@/lib/status"
+import { SUBJECT_STATUS_CONFIG, APPLICANT_STATUS_CONFIG, APPLICANTS_TAB_STATUSES, applicantLocation } from "@/lib/status"
 import type { Applicant, ApplicantStatus } from "@/lib/types"
 import { Pill, Chip } from "./Pill"
 import PhoneReveal from "./PhoneReveal"
 import ApplicantDrawer from "./ApplicantDrawer"
 
-const STATUS_FILTERS: ApplicantStatus[] = ["active", "interviewed", "rejected"]
-
-// Statuses that move an applicant out of this table into On File — a
-// status change into one of these should remove them from view here
-// immediately, not just on next page load.
-const MOVES_TO_ON_FILE: ApplicantStatus[] = ["dormant", "archived", "shortlisted"]
+const STATUS_FILTERS: ApplicantStatus[] = APPLICANTS_TAB_STATUSES
 
 export default function ApplicantsTable({ initialApplicants }: { initialApplicants: Applicant[] }) {
   const [applicants, setApplicants] = useState(initialApplicants)
@@ -24,7 +19,9 @@ export default function ApplicantsTable({ initialApplicants }: { initialApplican
   const selected = applicants.find(a => a.id === selectedId) ?? null
 
   const handleUpdated = (updated: Applicant) => {
-    if (MOVES_TO_ON_FILE.includes(updated.status)) {
+    // A status outside this tab (e.g. dormant → On File, successful →
+    // Active Tutors) removes them from view immediately, not just on reload.
+    if (!APPLICANTS_TAB_STATUSES.includes(updated.status)) {
       setApplicants(prev => prev.filter(a => a.id !== updated.id))
       setSelectedId(null)
       return

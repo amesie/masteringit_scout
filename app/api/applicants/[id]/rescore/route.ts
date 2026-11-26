@@ -4,10 +4,10 @@ import { createClient } from "@/lib/supabase/server"
 import { scoreApplication } from "@/lib/scoring"
 import type { Applicant, OpenNeed } from "@/lib/types"
 
-// On-demand version of what the nightly dormant-check cron does for one
-// applicant: re-run scoring against the *current* Hiring Needs. Lets staff
-// check an On File applicant right after adding a new need, instead of
-// waiting for the nightly job.
+// Re-runs scoring for one applicant against the *current* Hiring Needs, so
+// staff can check an On File applicant right after adding a new need.
+// Only the score is updated — status (and so which tab they're on) is only
+// ever changed by a screener.
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   await requireProfile()
   const { id } = await params
@@ -54,21 +54,12 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     openNeeds
   )
 
-  const newStatus = scoring.needsReview ? applicant.status : scoring.matchesOpenNeed ? "active" : "dormant"
-
   const updates: Record<string, unknown> = {
     match_score: scoring.matchScore,
     score_rationale: scoring.scoreRationale,
     subject_scores: scoring.subjectScores,
     needs_review: scoring.needsReview,
     review_reason: scoring.needsReview ? scoring.reviewReason : null,
-    status: newStatus,
-  }
-
-  if (newStatus === "active") {
-    updates.dormant_since = null
-  } else if (newStatus === "dormant" && applicant.status !== "dormant") {
-    updates.dormant_since = new Date().toISOString()
   }
 
   const { data: updated, error: updateError } = await supabase
@@ -82,5 +73,5 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: updateError?.message || "Could not save the new score." }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true, applicant: updated })
+  return NextResponse.json({ ok: true, applicant: updated, matchesOpenNeed: scoring.matchesOpenNeed })
 }

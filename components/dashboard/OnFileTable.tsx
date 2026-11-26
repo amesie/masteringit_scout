@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { applicantLocation, APPLICANT_STATUS_CONFIG } from "@/lib/status"
+import { applicantLocation, APPLICANT_STATUS_CONFIG, ON_FILE_TAB_STATUSES, TUTORS_TAB_STATUSES } from "@/lib/status"
 import { Chip, Pill } from "./Pill"
 import PhoneReveal from "./PhoneReveal"
 import ApplicantDrawer from "./ApplicantDrawer"
@@ -12,12 +12,36 @@ function formatDate(value: string | null) {
   return new Date(value).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
 }
 
-// Statuses that belong on this page — a change away from all of these
-// (e.g. re-scoring back to active, or un-shortlisting) should remove the
-// applicant from view immediately rather than waiting for a page reload.
-const ON_FILE_STATUSES: ApplicantStatus[] = ["dormant", "archived", "shortlisted"]
+// Shared by the On File and Active Tutors tabs, which list applicants the
+// same way and differ only in which statuses belong and the date column.
+const VARIANTS: Record<"on-file" | "tutors", {
+  statuses: ApplicantStatus[]
+  intro: string
+  empty: string
+  dateLabel: string
+  dateOf: (a: Applicant) => string | null
+}> = {
+  "on-file": {
+    statuses: ON_FILE_TAB_STATUSES,
+    intro: "Applicants kept on file for future openings. They stay here until their status is changed — marking them Active or Rejected moves them back to Applicants. Applicants dormant for 12+ months are flagged for your review — SCOUT never removes anyone automatically.",
+    empty: "No applicants on file",
+    dateLabel: "Dormant Since",
+    dateOf: a => a.dormant_since,
+  },
+  tutors: {
+    statuses: TUTORS_TAB_STATUSES,
+    intro: "Applicants who passed their interview and are now tutors.",
+    empty: "No active tutors yet",
+    dateLabel: "Tutor Since",
+    dateOf: a => a.successful_at,
+  },
+}
 
-export default function OnFileTable({ initialApplicants }: { initialApplicants: Applicant[] }) {
+export default function OnFileTable({ initialApplicants, variant }: {
+  initialApplicants: Applicant[]
+  variant: "on-file" | "tutors"
+}) {
+  const config = VARIANTS[variant]
   const [applicants, setApplicants] = useState(initialApplicants)
   const [search, setSearch] = useState("")
   const [subjectSearch, setSubjectSearch] = useState("")
@@ -26,7 +50,9 @@ export default function OnFileTable({ initialApplicants }: { initialApplicants: 
   const selected = applicants.find(a => a.id === selectedId) ?? null
 
   const handleUpdated = (updated: Applicant) => {
-    if (!ON_FILE_STATUSES.includes(updated.status)) {
+    // A status that doesn't belong on this tab removes them from view
+    // immediately rather than waiting for a page reload.
+    if (!config.statuses.includes(updated.status)) {
       setApplicants(prev => prev.filter(a => a.id !== updated.id))
       setSelectedId(null)
       return
@@ -50,7 +76,7 @@ export default function OnFileTable({ initialApplicants }: { initialApplicants: 
   return (
     <div>
       <p className="text-sm mb-5" style={{ color: "#8A8580" }}>
-        Shortlisted applicants and those kept on file for future openings. Applicants dormant for 12+ months are flagged for your review — SCOUT never removes anyone automatically.
+        {config.intro}
       </p>
       <div className="flex items-center gap-3 mb-6">
         <div className="relative">
@@ -80,7 +106,7 @@ export default function OnFileTable({ initialApplicants }: { initialApplicants: 
         <table className="w-full">
           <thead>
             <tr style={{ borderBottom: "1px solid #E5E3DF", background: "#F5F4F2" }}>
-              {["Name & Surname", "Status", "Subject(s)", "Location", "Contact", "Dormant Since", ""].map(h => (
+              {["Name & Surname", "Status", "Subject(s)", "Location", "Contact", config.dateLabel, ""].map(h => (
                 <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider"
                   style={{ color: "#8A8580" }}>{h}</th>
               ))}
@@ -90,7 +116,7 @@ export default function OnFileTable({ initialApplicants }: { initialApplicants: 
             {filtered.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-5 py-12 text-center text-sm" style={{ color: "#8A8580" }}>
-                  No applicants on file
+                  {config.empty}
                 </td>
               </tr>
             ) : filtered.map((a, i) => {
@@ -102,10 +128,10 @@ export default function OnFileTable({ initialApplicants }: { initialApplicants: 
                 onClick={() => setSelectedId(a.id)}>
                 <td className="px-5 py-4">
                   <span className="text-sm font-semibold" style={{ color: "#3A3A3A" }}>{a.name}</span>
-                  {a.needs_review && (
+                  {variant === "on-file" && a.needs_review && (
                     <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold"
-                      style={{ background: "#FDE8EC", color: "#B0253C" }}>
-                      12mo review
+                      style={{ background: "#FDE8EC", color: "#B0253C" }} title={a.review_reason ?? undefined}>
+                      {a.review_reason?.startsWith("Matches a current hiring need") ? "Matches need" : "Needs review"}
                     </span>
                   )}
                 </td>
@@ -137,7 +163,7 @@ export default function OnFileTable({ initialApplicants }: { initialApplicants: 
                   </div>
                 </td>
                 <td className="px-5 py-4">
-                  <span className="text-sm" style={{ color: "#8A8580" }}>{formatDate(a.dormant_since)}</span>
+                  <span className="text-sm" style={{ color: "#8A8580" }}>{formatDate(config.dateOf(a))}</span>
                 </td>
                 <td className="px-5 py-4">
                   <button className="flex items-center gap-1 text-xs font-medium transition-colors hover:text-[#FD3352]"

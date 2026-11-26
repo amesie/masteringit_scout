@@ -23,6 +23,16 @@ export const SUBJECT_STATUS_CONFIG: Record<
   "not-qualified": { label: "Not Qualified", bg: "#FDE8EC", text: "#B0253C" },
 }
 
+// Which dashboard tab an applicant appears on is decided purely by status:
+//   Applicants     — the hiring pipeline (new, shortlisted, interviewed,
+//                    and rejected applicants returned to the pool)
+//   On File        — kept on file for future openings (dormant/archived);
+//                    they stay there until a screener changes the status
+//   Active Tutors  — passed the interview and are now tutors
+export const APPLICANTS_TAB_STATUSES: ApplicantStatus[] = ["active", "shortlisted", "interviewed", "rejected"]
+export const ON_FILE_TAB_STATUSES: ApplicantStatus[] = ["dormant", "archived"]
+export const TUTORS_TAB_STATUSES: ApplicantStatus[] = ["successful"]
+
 // Applicant lifecycle status — extends the same visual language (light
 // tint + saturated text) to the six statuses from the build spec.
 export const APPLICANT_STATUS_CONFIG: Record<
@@ -32,6 +42,7 @@ export const APPLICANT_STATUS_CONFIG: Record<
   active: { label: "Active", bg: "#E8F7EF", text: "#1A7A47" },
   shortlisted: { label: "Shortlisted", bg: "#E6F7FC", text: "#0E7490" },
   interviewed: { label: "Interviewed", bg: "#F3E8FD", text: "#6B21A8" },
+  successful: { label: "Successful", bg: "#FFF4D6", text: "#8A5A00" },
   rejected: { label: "Rejected", bg: "#FDE8EC", text: "#B0253C" },
   dormant: { label: "Dormant", bg: "#F1F0EE", text: "#5A5652" },
   archived: { label: "Archived", bg: "#ECECEC", text: "#6B6763" },

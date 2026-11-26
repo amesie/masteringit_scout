@@ -11,6 +11,7 @@ export async function updateApplicantStatus(
     .update({
       status,
       dormant_since: status === "dormant" ? new Date().toISOString() : null,
+      successful_at: status === "successful" ? new Date().toISOString() : null,
     })
     .eq("id", id)
 }
@@ -73,13 +74,13 @@ export async function deleteApplicant(id: string): Promise<{ error: string | nul
 
 export async function rescoreApplicant(
   id: string
-): Promise<{ applicant: Applicant | null; error: string | null }> {
+): Promise<{ applicant: Applicant | null; matchesOpenNeed: boolean; error: string | null }> {
   const res = await fetch(`/api/applicants/${id}/rescore`, { method: "POST" })
   const body = await res.json().catch(() => ({}))
   if (!res.ok) {
-    return { applicant: null, error: body.error || "Could not re-score this applicant." }
+    return { applicant: null, matchesOpenNeed: false, error: body.error || "Could not re-score this applicant." }
   }
-  return { applicant: body.applicant as Applicant, error: null }
+  return { applicant: body.applicant as Applicant, matchesOpenNeed: !!body.matchesOpenNeed, error: null }
 }
 
 export async function draftOutreach(

@@ -6,8 +6,10 @@ const TWELVE_MONTHS_MS = 365 * 24 * 60 * 60 * 1000
 
 // Runs nightly via Vercel Cron (see vercel.json). Two jobs, per the build
 // spec's dormant-lifecycle rules:
-//   1. Reactivate dormant applicants whose subjects now match a current
-//      open need.
+//   1. Flag dormant applicants whose subjects now match a current open
+//      need, so a screener can decide whether to mark them Active. Status
+//      is never changed automatically — On File applicants stay On File
+//      until a screener moves them.
 //   2. Flag applicants dormant for 12+ months for owner/employee review —
 //      never auto-delete or auto-archive (POPIA data-retention guardrail).
 export async function GET(request: Request) {
@@ -27,7 +29,7 @@ export async function GET(request: Request) {
   const { data: dormantData } = await admin.from("applicants").select("*").eq("status", "dormant")
   const dormantApplicants = (dormantData ?? []) as Applicant[]
 
-  let reactivated = 0
+  let matched = 0
   let flagged = 0
   const now = Date.now()
 
@@ -42,11 +44,14 @@ export async function GET(request: Request) {
     )
 
     if (matchesOpenNeed) {
-      await admin
-        .from("applicants")
-        .update({ status: "active", dormant_since: null, needs_review: false, review_reason: null })
-        .eq("id", applicant.id)
-      reactivated++
+      const reason = "Matches a current hiring need — mark as Active to move back to Applicants."
+      if (applicant.review_reason !== reason) {
+        await admin
+          .from("applicants")
+          .update({ needs_review: true, review_reason: reason })
+          .eq("id", applicant.id)
+        matched++
+      }
       continue
     }
 
@@ -69,7 +74,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     ok: true,
     checked: dormantApplicants.length,
-    reactivated,
+    flaggedAsMatchingNeed: matched,
     flaggedForReview: flagged,
   })
 }

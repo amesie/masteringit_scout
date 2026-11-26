@@ -71,6 +71,7 @@ const STATUS_OPTIONS: ApplicantStatus[] = [
   "active",
   "shortlisted",
   "interviewed",
+  "successful",
   "rejected",
   "dormant",
   "archived",
@@ -312,6 +313,7 @@ export default function ApplicantDrawer({
         ...applicant,
         status,
         dormant_since: status === "dormant" ? new Date().toISOString() : null,
+        successful_at: status === "successful" ? new Date().toISOString() : null,
       })
       // Draft an interview-invite the moment someone is shortlisted — never
       // sent automatically, just ready for a person to review and send.
@@ -367,16 +369,17 @@ export default function ApplicantDrawer({
     setRescoring(true)
     setRescoreError(null)
     setRescoreNote(null)
-    const { applicant: updated, error } = await rescoreApplicant(applicant.id)
+    const { applicant: updated, matchesOpenNeed, error } = await rescoreApplicant(applicant.id)
     setRescoring(false)
     if (error || !updated) {
       setRescoreError(error || "Could not re-score this applicant.")
       return
     }
-    const movedToActive = updated.status === "active" && applicant.status !== "active"
+    // Re-scoring never changes status — a screener decides whether to move
+    // them back to Applicants by marking them Active.
     setRescoreNote(
-      movedToActive
-        ? `Now matches a current hiring need — moved to Active (score ${updated.match_score}/100).`
+      matchesOpenNeed
+        ? `Now matches a current hiring need (score ${updated.match_score}/100). Mark them Active to move them back to Applicants.`
         : `Re-scored: ${updated.match_score}/100. ${updated.score_rationale || ""}`
     )
     onUpdated(updated)

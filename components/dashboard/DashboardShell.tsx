@@ -10,6 +10,7 @@ import type { Profile } from "@/lib/types"
 const TABS = [
   { href: "/dashboard", label: "Applicants", ownerOnly: false },
   { href: "/dashboard/on-file", label: "On File", ownerOnly: false },
+  { href: "/dashboard/tutors", label: "Active Tutors", ownerOnly: false },
   { href: "/dashboard/needs", label: "Hiring Needs", ownerOnly: false },
   { href: "/dashboard/import", label: "Import CSV", ownerOnly: false },
   { href: "/dashboard/users", label: "Manage Users", ownerOnly: true },
