@@ -47,6 +47,14 @@ export async function markContacted(supabase: SupabaseClient, id: string) {
   return supabase.from("applicants").update({ last_contacted: new Date().toISOString() }).eq("id", id)
 }
 
+// `date` is a YYYY-MM-DD string from a date input. Stored at midday SAST so
+// the calendar date can't shift when rendered in another time zone.
+export async function updateAppliedDate(supabase: SupabaseClient, id: string, date: string) {
+  const appliedAt = new Date(`${date}T12:00:00+02:00`).toISOString()
+  const result = await supabase.from("applicants").update({ applied_at: appliedAt }).eq("id", id)
+  return { ...result, appliedAt }
+}
+
 export async function getDocumentUrl(path: string): Promise<string | null> {
   const res = await fetch(`/api/documents?path=${encodeURIComponent(path)}`)
   if (!res.ok) return null

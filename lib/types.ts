@@ -41,6 +41,11 @@ export interface Applicant {
   area: string | null
   country: string | null
   suburb: string | null
+  residential_suburb: string | null
+  current_work: string | null
+  teaching_languages: string[] | null
+  police_clearance: boolean | null
+  popia_consent_at: string | null
   availability: string | null
   match_score: number | null
   score_rationale: string | null

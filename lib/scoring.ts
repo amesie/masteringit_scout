@@ -65,6 +65,8 @@ interface NeedMatch {
 const MODE_KEYWORDS: Record<string, string[]> = {
   Online: ["online"],
   "In-person": ["in-person", "in person"],
+  "Online & In Person": ["online", "in-person", "in person", "both"],
+  // Legacy label — applications submitted before the rename stored "Both".
   Both: ["online", "in-person", "in person", "both"],
 }
 

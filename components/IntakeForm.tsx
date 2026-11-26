@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { LogoFull } from "./Logo"
 import GradeSelector from "./GradeSelector"
-import { CURRICULA, COUNTRIES, SUBURBS, SUBJECTS } from "@/lib/intake-options"
+import { CURRICULA, COUNTRIES, SUBURBS, SUBJECTS, TEACHING_MODES, TEACHING_LANGUAGES } from "@/lib/intake-options"
 
 type FileState = { name: string; file: File } | null
 
@@ -219,6 +219,33 @@ function UploadField({ label, hint, value, onChange, required }: {
   )
 }
 
+function TickBox({ checked, onChange, required, children }: {
+  checked: boolean
+  onChange: (checked: boolean) => void
+  required?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <label className="flex items-start gap-3 px-3.5 py-3 rounded-lg border cursor-pointer transition-all"
+      style={{
+        borderColor: checked ? "#FD3352" : "#E5E3DF",
+        background: checked ? "#FFF5F7" : "#FFF",
+      }}>
+      <input type="checkbox" className="sr-only" checked={checked} required={required}
+        onChange={e => onChange(e.target.checked)} />
+      <span className="mt-0.5 w-4 h-4 rounded border flex items-center justify-center flex-shrink-0"
+        style={{ borderColor: checked ? "#FD3352" : "#C5C2BD", background: checked ? "#FD3352" : "transparent" }}>
+        {checked && (
+          <svg width="10" height="10" viewBox="0 0 10 10">
+            <path d="M2 5l2.5 2.5 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        )}
+      </span>
+      <span className="text-sm leading-relaxed" style={{ color: "#3A3A3A" }}>{children}</span>
+    </label>
+  )
+}
+
 export default function IntakeForm() {
   const [submitted, setSubmitted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -230,6 +257,11 @@ export default function IntakeForm() {
   const [country, setCountry] = useState(COUNTRIES[0])
   const [suburb, setSuburb] = useState("")
   const [customSuburb, setCustomSuburb] = useState("")
+  const [residentialSuburb, setResidentialSuburb] = useState("")
+  const [currentWork, setCurrentWork] = useState("")
+  const [languages, setLanguages] = useState<string[]>([])
+  const [policeClearance, setPoliceClearance] = useState(false)
+  const [popiaConsent, setPopiaConsent] = useState(false)
   const [days, setDays] = useState<string[]>([])
   const [times, setTimes] = useState<string[]>([])
   const [cv, setCv] = useState<FileState>(null)
@@ -261,8 +293,22 @@ export default function IntakeForm() {
     e.preventDefault()
     setError("")
 
-    if (!cv) {
-      setError("Please attach your CV.")
+    if (!cv || !matric) {
+      setError(
+        !cv && !matric
+          ? "Please attach your CV and matric certificate."
+          : !cv
+            ? "Please attach your CV."
+            : "Please attach your matric certificate."
+      )
+      return
+    }
+    if (languages.length === 0) {
+      setError("Please select at least one language you're comfortable teaching in.")
+      return
+    }
+    if (!popiaConsent) {
+      setError("Please tick the POPIA consent box to submit your application.")
       return
     }
 
@@ -275,6 +321,11 @@ export default function IntakeForm() {
         phone: phone.trim(),
         country: country.trim(),
         suburb: suburb === "Other" ? customSuburb.trim() : suburb,
+        residentialSuburb: residentialSuburb.trim(),
+        currentWork: currentWork.trim(),
+        languages,
+        policeClearance,
+        popiaConsent,
         availability: [...days, ...times],
         mode,
         subjects: subjectBlocks
@@ -292,7 +343,7 @@ export default function IntakeForm() {
       const formData = new FormData()
       formData.append("payload", JSON.stringify(payload))
       formData.append("cv", cv.file)
-      if (matric) formData.append("matric", matric.file)
+      formData.append("matric", matric.file)
 
       const res = await fetch("/api/apply", { method: "POST", body: formData })
 
@@ -376,6 +427,20 @@ export default function IntakeForm() {
               onBlur={e => (e.target.style.borderColor = "#E5E3DF")} />
           </div>
 
+          <div>
+            <label className="block text-sm font-medium mb-1.5" style={{ color: "#3A3A3A" }}>Current work</label>
+            <p className="text-xs mb-2" style={{ color: "#8A8580" }}>
+              {"What do you currently do? e.g. your job, or what and where you're studying"}
+            </p>
+            <textarea required rows={3} maxLength={1000}
+              placeholder="e.g. 2nd-year BSc Engineering student at UCT"
+              value={currentWork} onChange={e => setCurrentWork(e.target.value)}
+              className="w-full px-3.5 py-3 rounded-lg border text-sm resize-none"
+              style={{ borderColor: "#E5E3DF", background: "#FFF", color: "#3A3A3A", outline: "none" }}
+              onFocus={e => (e.target.style.borderColor = "#FD3352")}
+              onBlur={e => (e.target.style.borderColor = "#E5E3DF")} />
+          </div>
+
           <div className="flex flex-col gap-4">
             <div>
               <p className="text-sm font-medium" style={{ color: "#3A3A3A" }}>{"Subject(s) you're applying to tutor"}</p>
@@ -432,7 +497,7 @@ export default function IntakeForm() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1.5" style={{ color: "#3A3A3A" }}>{"Suburb / city you're based in"}</label>
+            <label className="block text-sm font-medium mb-1.5" style={{ color: "#3A3A3A" }}>{"City / town you live in"}</label>
             <div className="relative">
               <select
                 required
@@ -442,7 +507,7 @@ export default function IntakeForm() {
                 style={{ borderColor: "#E5E3DF", background: "#FFF", color: suburb ? "#3A3A3A" : "#8A8580", outline: "none" }}
                 onFocus={e => (e.target.style.borderColor = "#FD3352")}
                 onBlur={e => (e.target.style.borderColor = "#E5E3DF")}>
-                <option value="">Select a suburb / city</option>
+                <option value="">Select a city / town</option>
                 {SUBURBS.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
               <svg className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -453,7 +518,7 @@ export default function IntakeForm() {
 
           {suburb === "Other" && (
             <div>
-              <label className="block text-sm font-medium mb-1.5" style={{ color: "#3A3A3A" }}>Please specify your suburb / town</label>
+              <label className="block text-sm font-medium mb-1.5" style={{ color: "#3A3A3A" }}>Please specify your city / town</label>
               <input type="text" required placeholder="e.g. Stellenbosch" value={customSuburb} onChange={e => setCustomSuburb(e.target.value)}
                 className="w-full px-3.5 py-3 rounded-lg border text-sm"
                 style={{ borderColor: "#E5E3DF", background: "#FFF", color: "#3A3A3A", outline: "none" }}
@@ -461,6 +526,16 @@ export default function IntakeForm() {
                 onBlur={e => (e.target.style.borderColor = "#E5E3DF")} />
             </div>
           )}
+
+          <div>
+            <label className="block text-sm font-medium mb-1.5" style={{ color: "#3A3A3A" }}>Suburb you live in</label>
+            <input type="text" required maxLength={100} placeholder="e.g. Rondebosch" value={residentialSuburb}
+              onChange={e => setResidentialSuburb(e.target.value)}
+              className="w-full px-3.5 py-3 rounded-lg border text-sm"
+              style={{ borderColor: "#E5E3DF", background: "#FFF", color: "#3A3A3A", outline: "none" }}
+              onFocus={e => (e.target.style.borderColor = "#FD3352")}
+              onBlur={e => (e.target.style.borderColor = "#E5E3DF")} />
+          </div>
 
           <div>
             <label className="block text-sm font-medium mb-2" style={{ color: "#3A3A3A" }}>Availability</label>
@@ -511,7 +586,7 @@ export default function IntakeForm() {
           <div>
             <label className="block text-sm font-medium mb-2" style={{ color: "#3A3A3A" }}>Teaching mode</label>
             <div className="grid grid-cols-3 gap-2">
-              {["Online", "In-person", "Both"].map(m => {
+              {TEACHING_MODES.map(m => {
                 const active = mode === m
                 return (
                   <button key={m} type="button"
@@ -529,8 +604,38 @@ export default function IntakeForm() {
             </div>
           </div>
 
-          <UploadField label="CV" hint="PDF or Word document" value={cv} onChange={setCv} required />
-          <UploadField label="Matric certificate" hint="PDF or image (JPG, PNG)" value={matric} onChange={setMatric} />
+          <div>
+            <label className="block text-sm font-medium mb-1" style={{ color: "#3A3A3A" }}>Teaching language</label>
+            <p className="text-xs mb-2" style={{ color: "#8A8580" }}>
+              Which language(s) are you comfortable teaching in? Select all that apply.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {TEACHING_LANGUAGES.map(l => (
+                <TickBox key={l} checked={languages.includes(l)} onChange={() => toggleArr(languages, l, setLanguages)}>
+                  {l}
+                </TickBox>
+              ))}
+            </div>
+          </div>
+
+          <UploadField label="CV (required)" hint="PDF or Word document" value={cv} onChange={setCv} required />
+          <UploadField label="Matric certificate (required)" hint="PDF or image (JPG, PNG)" value={matric} onChange={setMatric} required />
+
+          <div>
+            <label className="block text-sm font-medium mb-2" style={{ color: "#3A3A3A" }}>Police clearance</label>
+            <TickBox checked={policeClearance} onChange={setPoliceClearance}>
+              I am able to obtain a police clearance certificate if required.
+            </TickBox>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2" style={{ color: "#3A3A3A" }}>Consent (POPIA)</label>
+            <TickBox checked={popiaConsent} onChange={setPopiaConsent} required>
+              I consent to Mastering IT collecting, storing and processing the personal information and
+              documents in this application for the purpose of assessing my application and matching me
+              with tutoring opportunities, in line with the Protection of Personal Information Act (POPIA).
+            </TickBox>
+          </div>
 
           {error && (
             <div className="px-3.5 py-3 rounded-lg text-sm" style={{ background: "#FDE8EC", color: "#B0253C" }}>

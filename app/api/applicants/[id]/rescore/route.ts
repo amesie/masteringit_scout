@@ -46,7 +46,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
         curriculum: s.curriculum,
         matricMark: s.matric_mark ?? undefined,
       })),
-      location: [applicant.suburb, applicant.country].filter(Boolean).join(", ") || applicant.area || "",
+      location: [applicant.residential_suburb, applicant.suburb, applicant.country].filter(Boolean).join(", ") || applicant.area || "",
       availability: (applicant.availability || "").split(",").map(s => s.trim()).filter(Boolean),
       mode: applicant.location_pref || "",
       hasMatric: !!applicant.matric_file_url,

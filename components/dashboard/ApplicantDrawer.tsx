@@ -4,8 +4,68 @@ import { useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { SUBJECT_STATUS_CONFIG, APPLICANT_STATUS_CONFIG, applicantLocation } from "@/lib/status"
 import type { Applicant, ApplicantStatus, SubjectMatchStatus, SubjectScoreEntry } from "@/lib/types"
-import { updateApplicantStatus, updateSubjectScores, keepOnFile, markContacted, getDocumentUrl, deleteApplicant, rescoreApplicant, draftOutreach, sendOutreach } from "./applicantActions"
+import { updateApplicantStatus, updateSubjectScores, keepOnFile, markContacted, updateAppliedDate, getDocumentUrl, deleteApplicant, rescoreApplicant, draftOutreach, sendOutreach } from "./applicantActions"
 import { Pill } from "./Pill"
+
+// YYYY-MM-DD in South African time, for a <input type="date"> value.
+function toSastDateInput(iso: string | null): string {
+  if (!iso) return ""
+  return new Date(iso).toLocaleDateString("en-CA", { timeZone: "Africa/Johannesburg" })
+}
+
+function formatDate(iso: string | null): string {
+  if (!iso) return "—"
+  return new Date(iso).toLocaleDateString("en-ZA", {
+    day: "numeric", month: "short", year: "numeric", timeZone: "Africa/Johannesburg",
+  })
+}
+
+function AppliedDateField({ applicant, onUpdated }: {
+  applicant: Applicant
+  onUpdated: (updated: Applicant) => void
+}) {
+  const saved = toSastDateInput(applicant.applied_at)
+  const [value, setValue] = useState(saved)
+  const [saving, setSaving] = useState(false)
+  const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null)
+
+  const handleSave = async () => {
+    if (!value) return
+    setSaving(true)
+    setNote(null)
+    const supabase = createClient()
+    const { error, appliedAt } = await updateAppliedDate(supabase, applicant.id, value)
+    setSaving(false)
+    if (error) {
+      setNote({ ok: false, text: "Could not save the application date." })
+      return
+    }
+    setNote({ ok: true, text: "Saved." })
+    onUpdated({ ...applicant, applied_at: appliedAt })
+  }
+
+  return (
+    <section>
+      <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "#8A8580" }}>
+        Application date
+      </h3>
+      <div className="flex items-center gap-2 flex-wrap">
+        <input type="date" value={value} max={toSastDateInput(new Date().toISOString())}
+          onChange={e => { setValue(e.target.value); setNote(null) }}
+          className="px-3.5 py-2.5 rounded-lg border text-sm"
+          style={{ borderColor: "#E5E3DF", background: "#FFF", color: "#3A3A3A", outline: "none" }} />
+        <button onClick={handleSave} disabled={saving || !value || value === saved}
+          className="px-4 py-2.5 rounded-lg text-xs font-semibold transition-opacity hover:opacity-90 disabled:opacity-50"
+          style={{ background: "#FD3352", color: "#FFF" }}>
+          {saving ? "Saving…" : "Save date"}
+        </button>
+      </div>
+      <p className="text-xs mt-2" style={{ color: note ? (note.ok ? "#1A7A47" : "#B0253C") : "#8A8580" }}>
+        {note ? note.text : `Applied ${formatDate(applicant.applied_at)}`}
+      </p>
+    </section>
+  )
+}
 
 const STATUS_OPTIONS: ApplicantStatus[] = [
   "active",
@@ -505,15 +565,31 @@ export default function ApplicantDrawer({
             </div>
           </section>
 
+          <AppliedDateField key={applicant.id} applicant={applicant} onUpdated={onUpdated} />
+
           <section>
             <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "#8A8580" }}>Details</h3>
             <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
               {[
                 { label: "Location", value: applicantLocation(applicant) },
-                { label: "Mode", value: applicant.location_pref || "—" },
+                {
+                  label: "Mode",
+                  // Older applications stored this option as "Both".
+                  value: applicant.location_pref === "Both" ? "Online & In Person" : applicant.location_pref || "—",
+                },
                 { label: "Availability", value: applicant.availability || "—" },
-              ].map(({ label, value }) => (
-                <div key={label}>
+                { label: "Teaching language", value: applicant.teaching_languages?.length ? applicant.teaching_languages.join(", ") : "—" },
+                {
+                  label: "Police clearance",
+                  value: applicant.police_clearance == null ? "—" : applicant.police_clearance ? "Able to obtain" : "Not indicated",
+                },
+                {
+                  label: "POPIA consent",
+                  value: applicant.popia_consent_at ? `Given ${formatDate(applicant.popia_consent_at)}` : "—",
+                },
+                { label: "Current work", value: applicant.current_work || "—", wide: true },
+              ].map(({ label, value, wide }) => (
+                <div key={label} className={wide ? "col-span-2" : undefined}>
                   <dt className="text-xs" style={{ color: "#8A8580" }}>{label}</dt>
                   <dd className="text-sm font-medium mt-0.5" style={{ color: "#3A3A3A" }}>{value}</dd>
                 </div>

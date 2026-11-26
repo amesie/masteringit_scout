@@ -5,7 +5,14 @@
 
 export const GRADES = Array.from({ length: 12 }, (_, i) => String(i + 1))
 
-export const CURRICULA = ["CAPS", "IEB", "Cambridge (CAIE)", "IB (International Baccalaureate)", "American Curriculum"]
+export const CURRICULA = [
+  "CAPS",
+  "IEB",
+  "Cambridge (CAIE)",
+  "IB (International Baccalaureate)",
+  "American Curriculum",
+  "Diverse (multiple curricula)",
+]
 
 export const COUNTRIES = ["South Africa"]
 
@@ -45,4 +52,6 @@ export const SUBJECTS = [
   "Other",
 ]
 
-export const TEACHING_MODES = ["Online", "In-person", "Both"]
+export const TEACHING_MODES = ["Online", "In-person", "Online & In Person"]
+
+export const TEACHING_LANGUAGES = ["English", "Afrikaans"]

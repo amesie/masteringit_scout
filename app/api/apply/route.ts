@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { scoreApplication, type ScoringSubjectInput } from "@/lib/scoring"
 import { sendApplicantConfirmation } from "@/lib/email"
 import { verifyMatricMarks } from "@/lib/verification"
-import { GRADES, CURRICULA, COUNTRIES, TEACHING_MODES } from "@/lib/intake-options"
+import { GRADES, CURRICULA, COUNTRIES, TEACHING_MODES, TEACHING_LANGUAGES } from "@/lib/intake-options"
 import type { OpenNeed } from "@/lib/types"
 
 interface ApplyPayload {
@@ -13,6 +13,11 @@ interface ApplyPayload {
   phone: string
   country: string
   suburb: string
+  residentialSuburb: string
+  currentWork: string
+  languages: string[]
+  policeClearance: boolean
+  popiaConsent: boolean
   availability: string[]
   mode: string
   subjects: ScoringSubjectInput[]
@@ -21,6 +26,7 @@ interface ApplyPayload {
 const MAX_NAME_LENGTH = 200
 const MAX_SHORT_TEXT_LENGTH = 100
 const MAX_EXPERIENCE_LENGTH = 5000
+const MAX_CURRENT_WORK_LENGTH = 1000
 const MAX_SUBJECTS = 10
 const MAX_AVAILABILITY_ITEMS = 20
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -44,6 +50,33 @@ function validatePayload(payload: ApplyPayload): string | null {
   }
   if (payload.suburb != null && (typeof payload.suburb !== "string" || payload.suburb.length > MAX_SHORT_TEXT_LENGTH)) {
     return "Please provide a valid suburb."
+  }
+  if (
+    typeof payload.residentialSuburb !== "string" ||
+    !payload.residentialSuburb.trim() ||
+    payload.residentialSuburb.length > MAX_SHORT_TEXT_LENGTH
+  ) {
+    return "Please provide the suburb you live in."
+  }
+  if (
+    typeof payload.currentWork !== "string" ||
+    !payload.currentWork.trim() ||
+    payload.currentWork.length > MAX_CURRENT_WORK_LENGTH
+  ) {
+    return "Please tell us about your current work."
+  }
+  if (
+    !Array.isArray(payload.languages) ||
+    payload.languages.length === 0 ||
+    payload.languages.some(l => typeof l !== "string" || !TEACHING_LANGUAGES.includes(l))
+  ) {
+    return "Please select at least one language you're comfortable teaching in."
+  }
+  if (typeof payload.policeClearance !== "boolean") {
+    return "Invalid police clearance value."
+  }
+  if (payload.popiaConsent !== true) {
+    return "POPIA consent is required to submit an application."
   }
   if (payload.mode != null && (typeof payload.mode !== "string" || !TEACHING_MODES.includes(payload.mode))) {
     return "Please select a valid teaching mode."
@@ -157,14 +190,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: validationError }, { status: 400 })
   }
 
-  if (cvFile) {
-    const fileError = validateFile(cvFile, "CV")
-    if (fileError) return NextResponse.json({ error: fileError }, { status: 400 })
+  // Both documents are compulsory — reject the submission outright rather
+  // than saving an application staff would have to chase documents for.
+  if (!cvFile || cvFile.size === 0) {
+    return NextResponse.json({ error: "Please attach your CV." }, { status: 400 })
   }
-  if (matricFile) {
-    const fileError = validateFile(matricFile, "Matric certificate")
-    if (fileError) return NextResponse.json({ error: fileError }, { status: 400 })
+  if (!matricFile || matricFile.size === 0) {
+    return NextResponse.json({ error: "Please attach your matric certificate." }, { status: 400 })
   }
+
+  const cvError = validateFile(cvFile, "CV")
+  if (cvError) return NextResponse.json({ error: cvError }, { status: 400 })
+  const matricError = validateFile(matricFile, "Matric certificate")
+  if (matricError) return NextResponse.json({ error: matricError }, { status: 400 })
 
   const admin = createAdminClient()
   const applicantId = randomUUID()
@@ -175,8 +213,18 @@ export async function POST(request: Request) {
   let cvUpload: { name: string; url: string } | null = null
   let matricUpload: { name: string; url: string } | null = null
 
-  if (cvFile) cvUpload = await uploadFile(admin, applicantId, "cv", cvFile)
-  if (matricFile) matricUpload = await uploadFile(admin, applicantId, "matric", matricFile)
+  cvUpload = await uploadFile(admin, applicantId, "cv", cvFile)
+  matricUpload = await uploadFile(admin, applicantId, "matric", matricFile)
+
+  if (!cvUpload || !matricUpload) {
+    // Don't leave a half-uploaded application behind.
+    const uploaded = [cvUpload?.url, matricUpload?.url].filter((p): p is string => !!p)
+    if (uploaded.length > 0) await admin.storage.from("applicant-documents").remove(uploaded)
+    return NextResponse.json(
+      { error: "We couldn't upload your documents. Please try again." },
+      { status: 500 }
+    )
+  }
 
   const { data: openNeedsData } = await admin
     .from("open_needs")
@@ -185,7 +233,7 @@ export async function POST(request: Request) {
   const openNeeds = (openNeedsData ?? []) as OpenNeed[]
 
   const canScore = validSubjects.length > 0
-  const location = [payload.suburb, payload.country].filter(Boolean).join(", ")
+  const location = [payload.residentialSuburb.trim(), payload.suburb, payload.country].filter(Boolean).join(", ")
 
   const scoring = canScore
     ? await scoreApplication(
@@ -225,6 +273,11 @@ export async function POST(request: Request) {
     location_pref: payload.mode || null,
     country: payload.country || null,
     suburb: payload.suburb || null,
+    residential_suburb: payload.residentialSuburb.trim(),
+    current_work: payload.currentWork.trim(),
+    teaching_languages: payload.languages,
+    police_clearance: payload.policeClearance,
+    popia_consent_at: new Date().toISOString(),
     area: location || null,
     availability: (payload.availability || []).join(", ") || null,
     match_score: scoring.matchScore,
@@ -235,10 +288,10 @@ export async function POST(request: Request) {
     review_reason: scoring.reviewReason,
     dormant_since: dormantSince,
     source: "form",
-    cv_file_name: cvUpload?.name ?? cvFile?.name ?? null,
-    cv_file_url: cvUpload?.url ?? null,
-    matric_file_name: matricUpload?.name ?? matricFile?.name ?? null,
-    matric_file_url: matricUpload?.url ?? null,
+    cv_file_name: cvUpload.name,
+    cv_file_url: cvUpload.url,
+    matric_file_name: matricUpload.name,
+    matric_file_url: matricUpload.url,
     raw_submission: payload,
   })
 

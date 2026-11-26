@@ -4,8 +4,10 @@ import type { Applicant, ApplicantStatus, SubjectMatchStatus } from "@/lib/types
 // only once a suburb is actually set. Older/CSV-imported rows only ever had
 // the freeform `area` text; falling back on `country` alone would show a
 // bare "South Africa" and hide the real imported location.
-export function applicantLocation(a: Pick<Applicant, "country" | "suburb" | "area">): string {
-  if (a.suburb) return [a.suburb, a.country].filter(Boolean).join(", ")
+export function applicantLocation(
+  a: Pick<Applicant, "country" | "suburb" | "area"> & Partial<Pick<Applicant, "residential_suburb">>
+): string {
+  if (a.suburb) return [a.residential_suburb, a.suburb, a.country].filter(Boolean).join(", ")
   return a.area || "—"
 }
 
